@@ -3,21 +3,29 @@ from twisted.internet import protocol, reactor
 class AbstractClient(protocol.Protocol):
     """ Abstract Client """
 
+    def __init__(self, handler):
+        self(self.__class__, self).init()
+        self.handler = handler
+
     def connectionMade(self):
-        pass
+        self.handler.on_connect()
 
     def connectionLost(self, reason):
-        pass
+        self.handler.on_close(reason)
 
     def dataReceived(self, data):
-        pass
+        self.on_received(data)
 
 
 class AbstractFactory(protocol.Factory):
     """ Abstract Factory """
 
+    def __init__(self, hanlder):
+        self(self.__class__, self).__init__()
+        self.handler = hanlder
+
     def buildProtocol(self, addr):
-        return AbstractClient()
+        return AbstractClient(self.handler)
 
 
 class AbstractServer():
@@ -28,6 +36,15 @@ class AbstractServer():
         self.port = port
         self.reactor = reactor
 
-    def run(self):
-        self.listenTCP(self.port, AbstractFactory())
+    def on_connect(self):
+        pass
 
+    def on_close(self, reason):
+        pass
+
+    def on_received(self, data):
+        pass
+
+    def run(self):
+        self.listenTCP(self.port, AbstractFactory(self))
+        self.reactor.run()
