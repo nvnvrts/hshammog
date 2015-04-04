@@ -1,11 +1,12 @@
-import hshammog.core.server
+import core.server as server
+
 
 class EchoServer(server.AbstractServer):
     """ Echo Server """
     # TDDO:
 
     def __init__(self, port):
-        super(self.__class__, self).__init__(port)
+        server.AbstractServer.__init__(self, port)
 
     def on_connect(self):
         print "connected"
@@ -16,3 +17,7 @@ class EchoServer(server.AbstractServer):
     def on_received(self, data):
         print "received", data
 
+
+if __name__ == '__main__':
+    server = EchoServer(18651)
+    server.run()
