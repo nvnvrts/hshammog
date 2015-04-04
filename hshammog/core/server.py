@@ -19,6 +19,7 @@ class AbstractClient(protocol.Protocol):
     def send(self, data):
         self.transport.write(data)
 
+
 class AbstractFactory(protocol.ClientFactory):
     """ Abstract Factory """
 

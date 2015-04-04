@@ -1,5 +1,6 @@
 import hshammog.core.server.AbstractServer
 
+
 class Gateway(AbstractServer):
     """
     Gateway
