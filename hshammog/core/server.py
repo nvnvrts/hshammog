@@ -5,20 +5,21 @@ class AbstractClient(protocol.Protocol):
     """ Abstract Client """
 
     def __init__(self, handler):
-        protocol.Protocol.__init__(self)
         self.handler = handler
 
     def connectionMade(self):
-        self.handler.on_connect()
+        self.handler.on_connect(self)
 
     def connectionLost(self, reason):
-        self.handler.on_close(reason)
+        self.handler.on_close(self, reason)
 
     def dataReceived(self, data):
-        self.on_received(data)
+        self.handler.on_received(self, data)
 
+    def send(self, data):
+        self.transport.write(data)
 
-class AbstractFactory(protocol.Factory):
+class AbstractFactory(protocol.ClientFactory):
     """ Abstract Factory """
 
     def __init__(self, hanlder):
@@ -35,13 +36,13 @@ class AbstractServer():
     def __init__(self, port):
         self.port = port
 
-    def on_connect(self):
+    def on_connect(self, client):
         pass
 
-    def on_close(self, reason):
+    def on_close(self, client, reason):
         pass
 
-    def on_received(self, data):
+    def on_received(self, client, data):
         pass
 
     def run(self):

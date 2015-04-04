@@ -8,14 +8,15 @@ class EchoServer(server.AbstractServer):
     def __init__(self, port):
         server.AbstractServer.__init__(self, port)
 
-    def on_connect(self):
+    def on_connect(self, client):
         print "connected"
 
-    def on_close(self, reason):
+    def on_close(self, client, reason):
         print "closed", reason
 
-    def on_received(self, data):
+    def on_received(self, client, data):
         print "received", data
+        client.send(data)
 
 
 if __name__ == '__main__':
