@@ -9,16 +9,24 @@ class PubSub():
         self.sub_port = sub_port
 
     def run(self):
-        context = zmq.Context()
+        try:
+            context = zmq.Context()
 
-        pub = context.socket(zmq.XPUB)
-        pub.bind("tcp://*:%d" % self.pub_port)
+            pub = context.socket(zmq.XSUB)
+            pub.bind("tcp://*:%d" % self.pub_port)
 
-        sub = context.socket(zmq.XSUB)
-        sub.bind("tcp://*:%d" % self.sub_port)
+            sub = context.socket(zmq.XPUB)
+            sub.bind("tcp://*:%d" % self.sub_port)
 
-        print "pub %d sub %d" % (self.pub_port, self.sub_port)
-        zmq.device(zmq.QUEUE, pub, sub)
+            print "mq pub port: %d, sub port: %d" % (self.pub_port, self.sub_port)
+
+            zmq.device(zmq.QUEUE, pub, sub)
+        except Exception:
+            print "Exception:"
+        finally:
+            pub.close()
+            sub.close()
+            context.term()
 
 
 
