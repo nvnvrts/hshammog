@@ -1,12 +1,16 @@
 __author__ = 'wonjin'
-import core.server as server
+
+from core.server import AbstractServer
+
+from lib.protocol import CGwRequest
+import lib.gw_helper
 
 
-class Gateway(server.AbstractServer):
+class Gateway(AbstractServer):
     """ Gateway """
 
     def __init__(self, port, mq_host, mq_pub_port, mq_sub_port):
-        server.AbstractServer.__init__(self)
+        AbstractServer.__init__(self)
 
         # connect to mq as a gateway (tag = "G")
         self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "G")
@@ -21,30 +25,14 @@ class Gateway(server.AbstractServer):
             # parse success flag and playlist
             pass
 
-    '''
-    class CGwRequest:
-    """ Client-Gateway Request Container """
-
-    def __init__(self,
-                 cmd=None,
-                 cid=None,
-                 ciddest=None,
-                 nmaxroom=None,
-                 msg=None,
-                 rid=None,
-                 roomlist=None):
-        self.cmd = cmd
-        self.cid = cid
-        self.ciddest = ciddest
-        self.nmaxroom = nmaxroom
-        self.msg = msg
-        self.rid = rid
-        self.roomlist = roomlist
-    '''
-
     def on_client_received(self, client, message):
         print "received from client"
 
+        # parse from message in JSON format
+        request = parse_from_json(message)
+
+        # TODO: message processing
+        ############################
         if message.cmd == "sConnect":
             self.connect()
         elif message.cmd == "rLookup":
