@@ -1,4 +1,5 @@
-from core.server import AbstractServer
+#from ..core.server import AbstractServer
+from hshammog.src.core.server import AbstractServer
 
 from lib.protocol import CGwRequest
 from lib.parse_to_json import parse_to_json
@@ -35,26 +36,25 @@ class Gateway(AbstractServer):
             'rJAccept':
             (lambda message_split:
                 self.on_rjaccept_received(int(message_split[1]),
-                                     int(message_split[2]))),
+                                     int(message_split[3]))),
             'rJReject':
             (lambda message_split:
                 self.on_rjreject_received(int(message_split[1]),
-                                     int(message_split[2]),
-                                     message_split[3])),
+                                     int(message_split[3]),
+                                     message_split[4])),
             'rBMsg':
             (lambda message_split:
                 self.on_rbmsg_received(int(message_split[1]),
                                   int(message_split[2]),
-                                  int(message_split[3]),
                                   message_split[4])),
             'rBye':
             (lambda message_split:
                 self.on_rbye_received(int(message_split[1]),
-                                 int(message_split[2]))),
+                                 int(message_split[3]))),
             'rError':
             (lambda message_split:
                 self.on_rerror_received(int(message_split[1]),
-                                   message_split[2]))
+                                   message_split[4]))
         }
 
         cmd = message_split[0]
@@ -180,7 +180,7 @@ class Gateway(AbstractServer):
         client.transport.write(resp)
 
     # room broadcast message from roomserver (rBMsg)
-    def on_rbmsg_received(self, cid_src, cid_dest, rid, msg):
+    def on_rbmsg_received(self, cid_src, cid_dest, msg):
         client = self.cid_binding[cid_src]
         resp = parse_to_json(CGwRequest(cmd='rBMsg',
                                         cid_src=cid_src,
