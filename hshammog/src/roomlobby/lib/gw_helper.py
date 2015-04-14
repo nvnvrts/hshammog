@@ -18,14 +18,16 @@ def parse_from_json(json_string):
     try:
         return decode_functions[(request['cmd'])](request)
     except Exception as e:
-        raise CGwRequestParseError(e)
+        return CGwRequest(cmd='sError', msg=e.__str__())
 
 
 def parse_to_json(request):
     try:
         return json.dumps(encode_functions[request.cmd](request))
     except Exception as e:
-        raise CGwRequestParseError(e)
+        return json.dumps(encode_functions['sError'](CGwRequest(
+                                                     cmd='sError',
+                                                     msg=e.__str__())))
 
 
 decode_functions = {
