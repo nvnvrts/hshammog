@@ -30,6 +30,7 @@ class Gateway(AbstractServer):
     def on_mq_received(self, message):
         print 'received from mq: ', message
 
+        # parse message by "|"
         message_split = message.split('|')
 
         roomserver_dictionary = {
@@ -203,7 +204,7 @@ class Gateway(AbstractServer):
 
     # make message for RoomLobby
     def make_message(self, cmd, cid, cid_dest, rid, msg):
-        return cmd + "|" + cid + "|" + cid_dest + "|" + rid + "|" + msg
+        return str(cmd) + "|" + str(cid) + "|" + str(cid_dest) + "|" + str(rid) + "|" + str(msg)
 
     # client id issuer
     # TODO: zookeeper issuing system
