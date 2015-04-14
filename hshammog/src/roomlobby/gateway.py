@@ -29,7 +29,7 @@ class Gateway(AbstractServer):
     def on_mq_received(self, message):
         print 'received from mq: ', message
 
-        message_split = message.split(',')
+        message_split = message.split('|')
 
         roomserver_dictionary = {
             'rJAccept':
@@ -103,7 +103,6 @@ class Gateway(AbstractServer):
 
         try:
             # ask zookeeper for a cid
-            ####################################
             print 'ask zookeeper for a cid'
             cid = self.zk_cid_issue()
             print 'new cid: %d' % cid
@@ -131,18 +130,18 @@ class Gateway(AbstractServer):
     # room join request from client (rJoin)
     def on_rjoin_received(self, cid, rid):
         # send join request to mq
-        print "room join request from client"
-        tag = "R"
-        msg = "rJoin," + cid + "," + rid
+        print 'room join request from client'
+        tag = 'R'
+        msg = self.make_message(cmd='rJoin', cid=cid, cid_dest='', rid=rid, msg='')
         print "pub to mq: ", tag
         self.publish_mq(msg, tag)
 
     # message request from client (rMsg)
-    def on_rmsg_received(self, cid_src, cid_dest, msg):
+    def on_rmsg_received(self, cid_src, cid_dest, rid, msg):
         # send message request to mq
         print "send message request from client"
         tag = "R"
-        msg = "rMsg," + cid_src + msg
+        msg = self.make_message(cmd='rMsg', cid=cid_src, cid_dest=cid_dest, rid=rid, msg=msg)
         print "pub to mq: ", tag
         self.publish_mq(msg, tag)
 
@@ -150,8 +149,8 @@ class Gateway(AbstractServer):
     def on_rexit_received(self, cid, rid):
         # send exit request to mq
         print "room exit request from client"
-        tag = "R"
-        msg = "rExit," + cid + "," + rid
+        tag = 'R'
+        msg = self.make_message(cmd='rExit', cid=cid, cid_dest='', rid=rid, msg='')
         print "pub to mq: ", tag
         self.publish_mq(msg, tag)
 
@@ -201,6 +200,10 @@ class Gateway(AbstractServer):
         client = self.cid_binding[cid]
         resp = parse_to_json(CGwRequest(cmd='rError',
                                         eMsg=msg))
+
+    # make message for RoomLobby
+    def make_message(self, cmd, cid, cid_dest, rid, msg):
+        return cmd + "|" + cid + "|" + cid_dest + "|" + rid + "|" + msg
 
     # client id issuer
     # TODO: zookeeper issuing system
