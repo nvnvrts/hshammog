@@ -3,10 +3,6 @@ class Room():
 
     def __init__(self):
         self.cid_list = []
-        self.rid = 0
-
-    def set_rid(self,rid):
-        self.rid = rid
 
     def add(self,cid):
         self.cid_list.append(cid)
@@ -30,17 +26,25 @@ class RoomServer(AbstractServer):
         # For future use
         # Wait for TCP connection
         self.listen_client(port)
-        r1=Room()
-        r1.set_rid(1)
 
+        self.rid_issue = 0
+        self.room_list = []
 
+        #room,room_list 초기 생성, 후에 변경
+        self.mk_room()
+
+    def mk_room(self):
+        r = Room()
+        self.rid_issue = self.rid_issue + 1
+        self.room_list[self.rid_issue] = r
+    '''
     def rid_to_room(self,rid): #rid로 room instance 찾아주는 함수
-        for i in range(len(self.room_list) - 1)
+        for i in range(len(self.room_list) - 1):
             if self.room_list[i].rid == rid:
                 return self.room_list[i]
             else:
                 continue
-
+    '''
     # From Gateway
     def on_mq_received(self, message):
         print 'received from mq: ', message
@@ -58,11 +62,18 @@ class RoomServer(AbstractServer):
                 (lambda message_split:
                     self.on_rexit_received(int(message_split[1]),int(message_split[3])))
         }
+        cmd = message_split[0]
+        if cmd in roomserver_dictionary:
+            print 'received valid', cmd, ' from gateway'
+            roomserver_dictionary[cmd](message_split)
+        else:
+            print 'received invalid ', cmd, ' from gateway'
+
     def make_message(self, cmd, cid, cid_dest, rid, msg):
         return cmd + "|" + cid + "|" + cid_dest + "|" + rid + "|" + msg
 
     def on_rjoin_received(self,cid,rid):
-        room = self.rid_to_room(self,rid)
+        room = self.room_list[rid]
         if len(room.cid_list) < 6:
             room.add(cid)
             tag = 'G'
@@ -74,7 +85,7 @@ class RoomServer(AbstractServer):
             self.publish_mq(msg,tag)
 
     def on_rmsg_received(self,cidSrc,cidDest,rid,msg):
-        room = self.rid_to_room(self,rid)
+        room = self.room_list[rid]
         if cidDest == -1:
             for i in room.cid_list:
                 tag = 'G'
@@ -86,7 +97,7 @@ class RoomServer(AbstractServer):
             self.publish_mq(msg,tag)
 
     def on_rexit_received(self,cid,rid):
-        room = self.rid_to_room(self,rid)
+        room = self.room_list[rid]
         room.delete(cid)
         tag = 'G'
         msg = self.make_message(cmd='rBye',cid=cid,cid_dest='',msg='')
