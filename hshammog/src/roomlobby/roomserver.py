@@ -89,18 +89,18 @@ class RoomServer(AbstractServer):
         if cidDest == -1:
             for i in room.cid_list:
                 tag = 'G'
-                msg = self.make_message(cmd='rBMsg',cid=cidSrc,cid_dest=i,msg=msg)
+                msg = self.make_message(cmd='rBMsg',cid=cidSrc,cid_dest=i,rid='',msg=msg)
                 self.publish_mq(msg,tag)
         else:
             tag = 'G'
-            msg = self.make_message(cmd='rBMsg',cid=cidSrc,cid_dest=cidDest,msg=msg)
+            msg = self.make_message(cmd='rBMsg',cid=cidSrc,cid_dest=cidDest,rid='',msg=msg)
             self.publish_mq(msg,tag)
 
     def on_rexit_received(self,cid,rid):
         room = self.room_list[rid]
         room.delete(cid)
         tag = 'G'
-        msg = self.make_message(cmd='rBye',cid=cid,cid_dest='',msg='')
+        msg = self.make_message(cmd='rBye',cid=cid,cid_dest='',rid=rid,msg='')
         self.publish_mq(msg,tag)
 
 
