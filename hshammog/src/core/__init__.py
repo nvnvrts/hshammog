@@ -1,4 +1,4 @@
-__all__ = ['server']
+__all__ = ['server', 'messagequeue']
 
 # Generic libraries
 import os
