@@ -1,4 +1,6 @@
-from core.mq import AbstractMQ
+import zmq
+
+from core.messagequeue import AbstractMQ
 
 
 class PubSubMQ(AbstractMQ):
@@ -8,6 +10,10 @@ class PubSubMQ(AbstractMQ):
         AbstractMQ.__init__(self, out_port, in_port)
 
     def run(self):
+        pub = None
+        sub = None
+        context = None
+
         try:
             # Context initialization
             context = zmq.Context()
@@ -21,14 +27,21 @@ class PubSubMQ(AbstractMQ):
             pub = context.socket(zmq.PUB)
             pub.bind('tcp://*:%d' % self.out_port)
 
+            print 'Starting pub-sub mq with subport(', self.in_port, \
+                  ') and pubport(', self.out_port, ')'
+
             # Start device
             zmq.device(zmq.FORWARDER, sub, pub)
 
-        except Exception as e:
+        except (KeyboardInterrupt, Exception) as e:
             print e
 
         finally:
-            pass
-            pub.close()
-            sub.close()
-            context.term()
+            print 'Shutting down pub-sub mq'
+
+            if pub is not None:
+                pub.close()
+            if sub is not None:
+                sub.close()
+            if context is not None:
+                context.term()
