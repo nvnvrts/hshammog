@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import zmq
 
 from core.messagequeue import AbstractMQ

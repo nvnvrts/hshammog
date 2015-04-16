@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+__all__ = ['CGwRequestParseError', 'parse_from_json', 'parse_to_json']
+
 import json
 
 from protocol import CGwRequest

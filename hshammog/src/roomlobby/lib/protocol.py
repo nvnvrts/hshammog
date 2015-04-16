@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+
 class CGwRequest:
     """ Client-Gateway Request Container """
 

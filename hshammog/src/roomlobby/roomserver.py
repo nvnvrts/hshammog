@@ -1,124 +1,190 @@
+# -*- coding: utf-8 -*-
+__all__ = ['RoomServer']
+
 from core.server import AbstractServer
-class Room():
+from core import cfg
 
-    def __init__(self):
-        self.cid_list = []
-
-    def add(self,cid):
-        self.cid_list.append(cid)
-
-    def delete(self,cid):
-        self.cid_list.remove(cid)
+from roomlobby.lib.field import Room
 
 
 class RoomServer(AbstractServer):
     """ RoomServer """
 
-    def __init__(self, port, mq_host, mq_pub_port, mq_sub_port):
+    def __init__(self, mq_host, mq_pub_port, mq_sub_port):
         AbstractServer.__init__(self)
 
-        # connect to mq as a room server
-        # subscribe tag = 'R'
-        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, 'R')
+        self.mq_host = mq_host
+        self.mq_pub_port = mq_pub_port
+        self.mq_sub_port = mq_sub_port
 
-        # For future use
-        # Wait for TCP connection
-        self.listen_client(port)
-
+        # TODO: zookeeper-based rid issuing
         self.rid_issue = 0
+
+        # roomlist dictionary (key: rid, value: Room instances)
         self.room_list = {}
 
-        #room,room_list 초기 생성, 후에 변경
-        self.mk_room()
+        for cnt in range(1, cfg.initial_room_count):
+            self.create_room()
 
-    def mk_room(self):
-        r = Room()
-        self.rid_issue = self.rid_issue + 1
-        self.room_list[self.rid_issue] = r
-    '''
-    def rid_to_room(self,rid): #rid로 room instance 찾아주는 함수
-        for i in range(len(self.room_list) - 1):
-            if self.room_list[i].rid == rid:
-                return self.room_list[i]
-            else:
-                continue
-    '''
+    # Create a new room with a new rid
+    def create_room(self):
+        new_rid = self.zk_rid_issue()
+        self.room_list[new_rid] = Room(new_rid, cfg.client_per_room)
+
     # From Gateway
     def on_mq_received(self, message):
-        print 'received from mq: ', message
-
         message_split = message.split('|')
 
         roomserver_dictionary = {
-            'rJoin': #cid,rid
-                (lambda message_split:
-                    self.on_rjoin_received(int(message_split[1]),int(message_split[3]))),
-            'rMsg':  #cidSrc,cidDest,rid,msg
-                (lambda message_split:
-                    self.on_rmsg_received(int(message_split[1]),int(message_split[2]),int(message_split[3]),message_split[4])),
-            'rExit':  #cid,rid
-                (lambda message_split:
-                    self.on_rexit_received(int(message_split[1]),int(message_split[3])))
+            'rJoin':
+            (lambda message_split:
+                self.on_rjoin_received(int(message_split[1]),
+                                       int(message_split[3]))),
+            'rMsg':
+            (lambda message_split:
+                self.on_rmsg_received(int(message_split[1]),
+                                      int(message_split[2]),
+                                      int(message_split[3]),
+                                      message_split[4])),
+            'rExit':
+            (lambda message_split:
+                self.on_rexit_received(int(message_split[1]),
+                                       int(message_split[3])))
         }
+
         cmd = message_split[0]
+
         if cmd in roomserver_dictionary:
-            print 'received valid', cmd, ' from gateway'
+            print '[RECV][GW] Valid', cmd
             roomserver_dictionary[cmd](message_split)
         else:
-            print 'received invalid ', cmd, ' from gateway'
+            print '[RECV][GW] Invalid ', cmd
 
     def make_message(self, cmd, cid, cid_dest, rid, msg):
-        return str(cmd) + "|" + str(cid) + "|" + str(cid_dest) + "|" + str(rid) + "|" + str(msg)
+        new_msg = str(cmd) + "|" + str(cid) + "|" + str(cid_dest) + "|"
+        new_msg += str(rid) + "|" + str(msg)
 
-    def on_rjoin_received(self,cid,rid): #room(rid)에 client(cid)를 넣는다
-        room = self.room_list[rid]
-        if len(room.cid_list) < cfg.client_per_room: #room에 빈자리가 있을때
-            room.add(cid)
-            tag = 'G'
-            msg = self.make_message(cmd='rJAccept',cid=cid,cid_dest='',rid=rid,msg='')
-            self.publish_mq(msg,tag)
-        else: #room에 빈자리가 없을때
-            tag = 'G'
-            msg = self.make_message(cmd='rJReject',cid=cid,cid_dest='',rid=rid,msg="can't enter this room")
-            self.publish_mq(msg,tag)
+        return new_msg
 
-    def on_rmsg_received(self,cidSrc,cidDest,rid,msg): #한 client(cidSrc)에서 다른 client(cidDest)로 msg 전송
-        room = self.room_list[rid]
-        if cidDest == -1: #room에 있는 전체 client에 msg 전송
-            for i in room.cid_list:
-                tag = 'G'
-                msg = self.make_message(cmd='rBMsg',cid=cidSrc,cid_dest=i,rid='',msg=msg)
-                self.publish_mq(msg,tag)
-        else: #room에 있는 하나의 client(cidDest)에 msg 전송
-            tag = 'G'
-            msg = self.make_message(cmd='rBMsg',cid=cidSrc,cid_dest=cidDest,rid='',msg=msg)
-            self.publish_mq(msg,tag)
+    # Join a client(cid) into a room(rid)
+    def on_rjoin_received(self, cid, rid):
+        if rid in self.room_list:
 
-    def on_rexit_received(self,cid,rid): #room(rid)에서 client(cid)를 제거
-        room = self.room_list[rid]
-        room.delete(cid)
-        tag = 'G'
-        msg = self.make_message(cmd='rBye',cid=cid,cid_dest='',rid=rid,msg='')
-        self.publish_mq(msg,tag)
+            msg = self.room_list[rid].add_player(cid)
 
-    def get_empty_room(self,maxroom): #room list에 있는 empty room을 maxroom개 만큼 return
-        emptylist = []
-        roomcount = maxroom
-        for r in self.room_list:
-            if roomcount == 0:
-                return emptylist
+            # adding player successful
+            if msg is None:
+                self.publish_mq(self.make_message(cmd='rJAccept',
+                                                  cid=cid,
+                                                  cid_dest='',
+                                                  rid=rid,
+                                                  msg=''),
+                                'G')
+            # adding player unsuccessful
             else:
-                if len(r.cid_list) < cfg.client_per_room:
-                    emptylist.append(r)
-                    roomcount = roomcount - 1
+                self.publish_mq(self.make_message(cmd='rJReject',
+                                                  cid=cid,
+                                                  cid_dest='',
+                                                  rid=rid,
+                                                  msg=msg),
+                                'G')
+
+    # Msg transmission from cid_src to cid_dest
+    def on_rmsg_received(self, cid_src, cid_dest, rid, msg):
+        if rid in self.room_list:
+
+            room = self.room_list[rid]
+
+            # Check if client(cid_src) is in room(rid)
+            if cid_src in room.players:
+                # broadcasting message in room
+                if cid_dest < 0:
+                    for i in room.players:
+                        self.publish_mq(self.make_message(cmd='rBMsg',
+                                                          cid=cid_src,
+                                                          cid_dest=i,
+                                                          rid=rid,
+                                                          msg=msg),
+                                        'G')
+                # sending message to cid_dest
+                elif cid_dest in room.players:
+                    self.publish_mq(self.make_message(cmd='rBMsg',
+                                                      cid=cid_src,
+                                                      cid_dest=cid_dest,
+                                                      rid=rid,
+                                                      msg=msg),
+                                    'G')
                 else:
-                    continue
-        return emptylist
+                    self.publish_mq(self.make_message(cmd='rError',
+                                                      msg=('Client Id (%d)'
+                                                           'not found' %
+                                                           cid_dest),
+                                                      cid=cid_src,
+                                                      cid_dest='',
+                                                      rid=rid),
+                                    'G')
+            else:
+                self.publish_mq(self.make_message(cmd='rError',
+                                                  msg=('Client Id (%d) not '
+                                                       'in room Id (%d)' %
+                                                       (cid_src, rid)),
+                                                  cid=cid_src,
+                                                  cid_dest=cid_dest,
+                                                  rid=rid),
+                                'G')
+
+    # delete player cid from rid
+    def on_rexit_received(self, cid, rid):
+        if rid in self.room_list:
+
+            msg = self.room_list[rid].delete_player(cid)
+
+            # deleting player successful
+            if msg is None:
+                self.publish_mq(self.make_message(cmd='rBye',
+                                                  cid=cid,
+                                                  rid=rid,
+                                                  cid_dest='',
+                                                  msg=''),
+                                'G')
+
+            # deleting player unsuccessful
+            else:
+                self.publish_mq(self.make_message(cmd='rError',
+                                                  cid=cid,
+                                                  msg=msg,
+                                                  cid_dest='',
+                                                  rid=rid),
+                                'G')
 
     # For future use
     def on_client_received(self, client, message):
         pass
 
-if __name__ == '__main__':
-    server = RoomServer()
-    server.run()
+    # Zookeeper-based room number issuing
+    # TODO:
+    def zk_rid_issue(self):
+        self.rid_issue += 1
+        return self.rid_issue
+
+    def run(self):
+        try:
+            print 'Starting roomserver with'
+            print 'subscribing mq (', self.mq_host, ') with port (', \
+                  self.mq_sub_port, ')'
+            print 'publishing mq (', self.mq_host, ') with port (', \
+                  self.mq_pub_port, ')'
+
+            # connect to mq as a gateway
+            # subscribe tag = 'R'
+            self.connect_mq(self.mq_host, self.mq_pub_port,
+                            self.mq_sub_port, 'R')
+
+            # start reactor
+            AbstractServer.run(self)
+
+        except (Exception, KeyboardInterrupt) as e:
+            print e
+
+        finally:
+            print 'Shutting down roomserver'
