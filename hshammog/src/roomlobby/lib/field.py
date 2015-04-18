@@ -9,6 +9,9 @@ class Room:
         self.nmaxplayer = nmaxplayer
         self.players = []
 
+    def __str__(self):
+        return str(self.players)
+
     def add_player(self, cid):
         if len(self.players) < self.nmaxplayer:
             self.players.append(cid)
