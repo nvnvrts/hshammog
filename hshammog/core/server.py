@@ -1,11 +1,19 @@
+import uuid
 from twisted.internet import protocol, reactor
 import txzmq
+
 
 class AbstractClient(protocol.Protocol):
     """ Abstract Client """
 
     def __init__(self, handler):
+        # use random uuid as a new client id
+        self.id = uuid.uuid4().hex
         self.handler = handler
+        self.recv_buffer = ""
+
+    def get_id(self):
+        return self.id
 
     def connectionMade(self):
         self.handler.on_client_connect(self)
@@ -15,12 +23,18 @@ class AbstractClient(protocol.Protocol):
 
     def dataReceived(self, data):
         # TODO:
-        message = data
-        self.handler.on_client_received(self, message)
+        self.recv_buffer += data
+        while self.recv_buffer:
+            list = self.recv_buffer.split("\n", 1)
+            if len(list) == 1:
+                break
+            message = list[0]
+            self.recv_buffer = list[1]
+            self.handler.on_client_received(self, message)
 
     def send(self, message):
         # TODO:
-        data = message
+        data = message + "\n"
         self.transport.write(data)
 
 
