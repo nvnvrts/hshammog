@@ -4,6 +4,10 @@ __all__ = ['GatewayServer']
 import ast
 import struct
 import random
+import psutil
+
+from datetime import datetime
+from twisted.internet.task import LoopingCall
 
 from kazoo.client import KazooClient
 from kazoo.client import KazooState
@@ -37,6 +41,9 @@ class GatewayServer(AbstractServer):
 
         # Zookeeper client
         self.zk_client = None
+
+    def status_monitor(self):
+        pass
 
     # From Room-server
     # rJAccept, rJReject, rBMsg, rBye, rError
@@ -319,6 +326,9 @@ class GatewayServer(AbstractServer):
 
             # start Zookeeper
             self.zk_start()
+
+            # start monitoring task
+            LoopingCall(self.status_monitor).start(1)
 
             # start reactor
             AbstractServer.run(self)

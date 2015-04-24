@@ -43,7 +43,7 @@ if __name__ == '__main__':
     subparser_run = subparsers.add_parser('run',
                                           help='run server')
     subparser_run.add_argument('app_mode',
-                               choices=('echo', 'roomlobby'),
+                               choices=('echo', 'roomlobby', 'field'),
                                default='echo')
     subparser_run.add_argument('server_mode',
                                choices=('mq', 'server', 'client', 'gateway'),
