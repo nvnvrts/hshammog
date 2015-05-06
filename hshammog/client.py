@@ -25,9 +25,7 @@ class TestClient(protocol.Protocol):
             if len(list) == 1:
                 break
             self.recv_buffer = list[1]
-
-            message = CGwRequestHelper.parse_from_json(list[0])
-            self.on_message_received(message)
+            self.on_message_received(list[0])
 
     def send_message(self, message):
         data = CGwRequestHelper.parse_to_json(message)
@@ -35,8 +33,9 @@ class TestClient(protocol.Protocol):
         print "SEND >>> ", data
 
     def on_message_received(self, message):
-        print "RECV <<< ", message.cmd
-        self.handlers[message.cmd](message)
+        print "RECV <<< ", message
+        request = CGwRequestHelper.parse_from_json(message)
+        self.handlers[request.cmd](request)
 
     def on_connected(self, message):
         print "CONNECTED", json.dumps(message)

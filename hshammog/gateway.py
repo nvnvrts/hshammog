@@ -11,6 +11,11 @@ class Gateway(server.AbstractServer):
         # connect to mq as a gateway
         self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "gateway")
 
+        # handler
+        self.handlers = {
+            'sConnect': self.on_client_s_connect
+        }
+
         # start accepting client
         self.clients = {}
         self.listen_client(port)
@@ -44,8 +49,12 @@ class Gateway(server.AbstractServer):
     def on_client_received(self, client, message):
         print "received from client: ", message
 
+        request = CGwRequestHelper.parse_from_json(message)
+        self.handlers[request.cmd](client, request)
+
+    def on_client_s_connect(self, client, message):
         # publish message to echoserver via mq
-        msg = "%s %s" % (client.get_id(), message)
+        msg = "%s %s" % (client.get_id(), CGwRequestHelper.parse_to_json(message))
         self.publish_mq(msg, "echoserver")
 
 if __name__ == '__main__':
