@@ -12,9 +12,13 @@ class EchoServer(server.AbstractServer):
 
     def on_mq_received(self, message):
         print "received from mq: ", message
-        tag = "gateway"
-        print "pub to mq: ", message, tag
-        self.publish_mq(message, tag)
+
+        # parse message from mq
+        id, payload = message.split(" ", 1)
+
+        # publish message to gateway via mq
+        print "pub to mq: ", message
+        self.publish_mq(message, "gateway")
 
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 import uuid
 from twisted.internet import protocol, reactor
 import txzmq
+from message import Message
 
 
 class AbstractClient(protocol.Protocol):
@@ -22,7 +23,6 @@ class AbstractClient(protocol.Protocol):
         self.handler.on_client_close(self, reason)
 
     def dataReceived(self, data):
-        # TODO:
         self.recv_buffer += data
         while self.recv_buffer:
             list = self.recv_buffer.split("\n", 1)
@@ -33,9 +33,7 @@ class AbstractClient(protocol.Protocol):
             self.handler.on_client_received(self, message)
 
     def send(self, message):
-        # TODO:
-        data = message + "\n"
-        self.transport.write(data)
+        self.transport.write(message + "\n")
 
 
 class AbstractFactory(protocol.ClientFactory):
