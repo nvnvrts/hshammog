@@ -53,9 +53,11 @@ class Gateway(server.AbstractServer):
         self.handlers[request.cmd](client, request)
 
     def on_client_s_connect(self, client, message):
+        response = CGwRequest(cmd='sAccept', cid=client.get_id())
+        client.send(CGwRequestHelper.parse_to_json(response))
         # publish message to echoserver via mq
-        msg = "%s %s" % (client.get_id(), CGwRequestHelper.parse_to_json(message))
-        self.publish_mq(msg, "echoserver")
+        #msg = "%s %s" % (client.get_id(), CGwRequestHelper.parse_to_json(message))
+        #self.publish_mq(msg, "echoserver")
 
 if __name__ == '__main__':
     server = Gateway(18888, '127.0.0.1', 5561, 5562)

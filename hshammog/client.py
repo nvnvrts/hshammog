@@ -10,7 +10,7 @@ class TestClient(protocol.Protocol):
         self.recv_buffer = ""
 
         self.handlers = {
-            'sConnect': (lambda message : self.on_connected(message)),
+            'sAccept': (lambda message: self.on_s_accept(message)),
         }
 
         self.send_message(CGwRequest(cmd='sConnect'))
@@ -37,9 +37,8 @@ class TestClient(protocol.Protocol):
         request = CGwRequestHelper.parse_from_json(message)
         self.handlers[request.cmd](request)
 
-    def on_connected(self, message):
-        print "CONNECTED", json.dumps(message)
-        pass
+    def on_s_accept(self, message):
+        print "ACCEPTED", message.cid
 
 
 class TestClientFactory(protocol.ClientFactory):
