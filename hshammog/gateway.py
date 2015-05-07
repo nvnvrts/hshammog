@@ -1,17 +1,35 @@
-import core.server as server
+import socket
+import logging
+from kazoo.client import KazooClient
 from core.protocol import *
+import core.server as server
 
+logging.basicConfig()
 
 class Gateway(server.AbstractServer):
     """ Gateway """
 
-    def __init__(self, port, mq_host, mq_pub_port, mq_sub_port):
+    def __init__(self,
+                 client_port,
+                 mq_host, mq_pub_port, mq_sub_port,
+                 zk_path, zk_hosts):
         server.AbstractServer.__init__(self, "gateway")
 
         # connect to mq as a gateway
         self.connect_mq(mq_host, mq_pub_port, mq_sub_port, self.id)
 
-        # handler
+        # zookeeper client setup
+        self.zk_client = KazooClient(hosts=zk_hosts)
+        self.zk_client.start()
+        self.zk_gateways_path = "/" + zk_path + "/gateways"
+        self.zk_rooms_path = "/" + zk_path + "/rooms"
+        self.zk_client.zk_ensure_path(self.zk_gateways_path)
+        self.zk_client.zk_ensure_path(self.zk_rooms_path)
+        ip = socket.gethostbyname(socket.gethostname())
+        self.zk_node = self.zk_client.create(self.zk_gateways_path,
+                                             b"0 %s" % ip, ephemeral=True, sequence=True)
+
+        # mq message handlers
         self.mq_hanlders = {
             'rJAccept': self.on_mq_r_j_accept,
             'rJReject': self.on_mq_r_j_reject,
@@ -19,7 +37,7 @@ class Gateway(server.AbstractServer):
             'rBye': self.on_mq_r_bye,
         }
 
-        # handler
+        # client message handlers
         self.client_handlers = {
             'sConnect': self.on_client_s_connect,
             'rLookup': self.on_client_r_lookup,
@@ -32,7 +50,7 @@ class Gateway(server.AbstractServer):
 
         # start accepting client
         self.clients = {}
-        self.listen_client(port)
+        self.listen_client(client_port)
 
     def publish_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
@@ -131,5 +149,5 @@ class Gateway(server.AbstractServer):
 
 
 if __name__ == '__main__':
-    server = Gateway(18888, '127.0.0.1', 5561, 5562)
+    server = Gateway(18888, '127.0.0.1', 5561, 5562, "ykwon", "192.168.0.16:2181")
     server.run()

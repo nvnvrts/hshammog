@@ -1,3 +1,4 @@
+from kazoo.client import KazooClient
 import core.server as server
 import core.room as core_room
 from core.protocol import *
@@ -6,7 +7,9 @@ from core.protocol import *
 class RoomServer(server.AbstractServer):
     """ Room Server """
 
-    def __init__(self, mq_host, mq_pub_port, mq_sub_port):
+    def __init__(self,
+                 mq_host, mq_pub_port, mq_sub_port,
+                 zk_path, zk_hosts):
         server.AbstractServer.__init__(self, "roomsvr")
 
         self.rooms = {}
