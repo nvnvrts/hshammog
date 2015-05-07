@@ -1,7 +1,8 @@
 import uuid
+import zlib
+import ctypes
 from twisted.internet import protocol, reactor
 import txzmq
-from message import Message
 
 
 class AbstractClient(protocol.Protocol):
@@ -9,12 +10,16 @@ class AbstractClient(protocol.Protocol):
 
     def __init__(self, handler):
         # use random uuid as a new client id
-        self.id = uuid.uuid4().hex
+        self.id = "client-%x" % ctypes.c_uint(hash(zlib.adler32(uuid.uuid4().hex))).value
+
         self.handler = handler
         self.recv_buffer = ""
 
     def get_id(self):
         return self.id
+
+    def send_data(self, data):
+        self.transport.write(data + "\n")
 
     def connectionMade(self):
         self.handler.on_client_connect(self)
@@ -25,15 +30,12 @@ class AbstractClient(protocol.Protocol):
     def dataReceived(self, data):
         self.recv_buffer += data
         while self.recv_buffer:
-            list = self.recv_buffer.split("\n", 1)
-            if len(list) == 1:
+            lines = self.recv_buffer.split("\n", 1)
+            if len(lines) == 1:
                 break
-            message = list[0]
-            self.recv_buffer = list[1]
-            self.handler.on_client_received(self, message)
-
-    def send(self, message):
-        self.transport.write(message + "\n")
+            line = lines[0]
+            self.recv_buffer = lines[1]
+            self.handler.on_client_data_received(self, line)
 
 
 class AbstractFactory(protocol.ClientFactory):
@@ -49,7 +51,10 @@ class AbstractFactory(protocol.ClientFactory):
 class AbstractServer():
     """ Abstract Server """
 
-    def __init__(self):
+    def __init__(self, type):
+        # use random uuid as a new server id
+        self.id = "%s-%x" % (type, ctypes.c_uint(hash(zlib.adler32(uuid.uuid4().hex))).value)
+
         self.factory = txzmq.ZmqFactory()
 
     def listen_client(self, port):
@@ -79,17 +84,17 @@ class AbstractServer():
         print "mq sub connected to", mq_sub_addr, tag
 
         self.mq_sub.subscribe(tag)
-        def on_sub(message, tag):
-            self.on_mq_received(message)
+        def on_sub(data, tag):
+            self.on_mq_data_received(tag, data)
         self.mq_sub.gotMessage = on_sub
 
-    def publish_mq(self, message, tag):
+    def publish_mq(self, tag, data):
         if self.mq_pub:
-            self.mq_pub.publish(message, tag)
+            self.mq_pub.publish(data, tag)
         else:
             pass
 
-    def on_mq_received(self, message):
+    def on_mq_data_received(self, data):
         pass
 
     def run(self):

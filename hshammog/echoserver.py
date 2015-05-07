@@ -8,7 +8,7 @@ class EchoServer(server.AbstractServer):
         server.AbstractServer.__init__(self)
 
         # connect to mq as a echo server
-        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "echoserver")
+        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "server")
 
     def on_mq_received(self, message):
         print "received from mq: ", message

@@ -21,8 +21,8 @@ class PubSub():
             print "mq pub port: %d, sub port: %d" % (self.pub_port, self.sub_port)
 
             zmq.device(zmq.QUEUE, pub, sub)
-        except Exception:
-            print "Exception:"
+        except Exception as e:
+            print "Exception:", e.message
         finally:
             pub.close()
             sub.close()

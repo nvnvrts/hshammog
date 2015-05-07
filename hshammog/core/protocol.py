@@ -1,17 +1,9 @@
 import json
 
 
-class CGwRequest:
-    """ Client-Gateway Request Container """
-
-    def __init__(self,
-                 cmd=None,
-                 cid=None,
-                 ciddest=None,
-                 nmaxroom=None,
-                 msg=None,
-                 rid=None,
-                 roomlist=None):
+class Message:
+    def __init__(self, cmd=None, cid=None, ciddest=None,
+                 nmaxroom=None, msg=None, rid=None, roomlist=None):
         self.cmd = cmd
         self.cid = cid
         self.ciddest = ciddest
@@ -20,10 +12,10 @@ class CGwRequest:
         self.rid = rid
         self.roomlist = roomlist
 
+    def dumps(self):
+        return MessageHelper.dump_message(self)
 
-class CGwRequestParseError(Exception):
-    """ Exception occurred during Client-Gateway Request Parsing """
-
+class MessageParseError(Exception):
     def __init__(self, msg):
         self.msg = msg
 
@@ -31,111 +23,68 @@ class CGwRequestParseError(Exception):
         return repr(self.value)
 
 
-class CGwRequestHelper(object):
-    """ Client-Gateway Request Helper """
+class MessageHelper(object):
+    """ Message Helper Class """
 
     encode_functions = {
-        'sConnect': (lambda request: {'cmd': 'sConnect'}),
-        'sAccept': (lambda request: {'cmd': 'sAccept',
-                                     'cId': request.cid}),
-        'sReject': (lambda request: {'cmd': 'sReject'}),
-        'sExit': (lambda request: {'cmd': 'sExit',
-                                   'cId': request.cid}),
-        'sBye': (lambda request: {'cmd': 'sBye',
-                                  'cId': request.cid}),
-        'sError': (lambda request: {'cmd': 'sError',
-                                    'eMsg': request.msg}),
-        'rLookup': (lambda request: {'cmd': 'rLookup',
-                                     'cId': request.cid,
-                                     'nMaxRoom': request.nmaxroom}),
-        'rList': (lambda request: {'cmd': 'rList',
-                                   'cId': request.cid,
-                                   'roomList': request.roomlist}),
-        'rJoin': (lambda request: {'cmd': 'rJoin',
-                                   'cId': request.cid,
-                                   'rId': request.rid}),
-        'rJAccept': (lambda request: {'cmd': 'rJAccept',
-                                      'cId': request.cid,
-                                      'rId': request.rid}),
-        'rJReject': (lambda request: {'cmd': 'rJReject',
-                                      'cId': request.cid,
-                                      'rId': request.rid,
-                                      'msg': request.msg}),
-        'rMsg': (lambda request: {'cmd': 'rMsg',
-                                  'cIdSrc': request.cid,
-                                  'cIdDest': request.ciddest,
-                                  'msg': request.msg}),
-        'rBMsg': (lambda request: {'cmd': 'rBMsg',
-                                   'cIdSrc': request.cid,
-                                   'cIdDest': request.ciddest,
-                                   'msg': request.msg}),
-        'rExit': (lambda request: {'cmd': 'rExit',
-                                   'cId': request.cid,
-                                   'rId': request.rid}),
-        'rBye': (lambda request: {'cmd': 'rBye',
-                                  'cId': request.cid,
-                                  'rId': request.rid}),
-        'rError': (lambda request: {'cmd': 'rError',
-                                    'eMsg': request.msg})
+        'sConnect': (lambda message: {'cmd': 'sConnect'}),
+        'sAccept': (lambda message: {'cmd': 'sAccept', 'cId': message.cid}),
+        'sReject': (lambda message: {'cmd': 'sReject'}),
+        'sExit': (lambda message: {'cmd': 'sExit', 'cId': message.cid}),
+        'sBye': (lambda message: {'cmd': 'sBye', 'cId': message.cid}),
+        'sError': (lambda message: {'cmd': 'sError', 'eMsg': message.msg}),
+        'rLookup': (lambda message: {'cmd': 'rLookup', 'cId': message.cid, 'nMaxRoom': message.nmaxroom}),
+        'rList': (lambda message: {'cmd': 'rList', 'cId': message.cid, 'roomList': message.roomlist}),
+        'rJoin': (lambda message: {'cmd': 'rJoin', 'cId': message.cid, 'rId': message.rid}),
+        'rJAccept': (lambda message: {'cmd': 'rJAccept', 'cId': message.cid, 'rId': message.rid}),
+        'rJReject': (lambda message: {'cmd': 'rJReject', 'cId': message.cid, 'rId': message.rid, 'msg': message.msg}),
+        'rMsg': (lambda message: {'cmd': 'rMsg', 'cIdSrc': message.cid, 'cIdDest': message.ciddest, 'rId': message.rid, 'msg': message.msg}),
+        'rBMsg': (lambda message: {'cmd': 'rBMsg', 'cIdSrc': message.cid, 'cIdDest': message.ciddest, 'rId': message.rid, 'msg': message.msg}),
+        'rExit': (lambda message: {'cmd': 'rExit', 'cId': message.cid, 'rId': message.rid}),
+        'rBye': (lambda message: {'cmd': 'rBye', 'cId': message.cid, 'rId': message.rid}),
+        'rExitAll': (lambda message: {'cmd': 'rExitAll', 'cId': message.cid}),
+        'rError': (lambda message: {'cmd': 'rError', 'eMsg': message.msg})
     }
 
     decode_functions = {
-        'sConnect': (lambda request: CGwRequest(cmd='sConnect')),
-        'sAccept': (lambda request: CGwRequest(cmd='sAccept',
-                                               cid=request['cId'])),
-        'sReject': (lambda request: CGwRequest(cmd='sReject')),
-        'sExit': (lambda request: CGwRequest(cmd='sExit',
-                                             cid=request['cId'])),
-        'sBye': (lambda request: CGwRequest(cmd='sBye',
-                                            cid=request['cId'])),
-        'sError': (lambda request: CGwRequest(cmd='sError',
-                                              msg=request['eMsg'])),
-        'rLookup': (lambda request: CGwRequest(cmd='rLookup',
-                                               cid=request['cId'],
-                                               nmaxroom=request['nMaxRoom'])),
-        'rList': (lambda request: CGwRequest(cmd='rList',
-                                             cid=request['cId'],
-                                             roomlist=request['roomList'])),
-        'rJoin': (lambda request: CGwRequest(cmd='rJoin',
-                                             cid=request['cId'],
-                                             rid=request['rId'])),
-        'rJAccept': (lambda request: CGwRequest(cmd='rJAccept',
-                                                cid=request['cId'],
-                                                rid=request['rId'])),
-        'rJReject': (lambda request: CGwRequest(cmd='rJReject',
-                                                cid=request['cId'],
-                                                rid=request['rId'])),
-        'rMsg': (lambda request: CGwRequest(cmd='rMsg',
-                                            cid=request['cIdSrc'],
-                                            ciddest=request['cIdDest'],
-                                            rid=request['rId'],
-                                            msg=request['msg'])),
-        'rBMsg': (lambda request: CGwRequest(cmd='rBMsg',
-                                             cid=request['cIdSrc'],
-                                             ciddest=request['cIdDest'],
-                                             msg=request['msg'])),
-        'rExit': (lambda request: CGwRequest(cmd='rExit',
-                                             cid=request['cId'],
-                                             rid=request['rId'])),
-        'rBye': (lambda request: CGwRequest(cmd='rBye',
-                                            cid=request['cId'],
-                                            rid=request['rId'])),
-        'rError': (lambda request: CGwRequest(cmd='rError',
-                                              cid=request['cId'],
-                                              msg=request['eMsg']))
+        'sConnect': (lambda message: Message(cmd='sConnect')),
+        'sAccept': (lambda message: Message(cmd='sAccept', cid=message['cId'])),
+        'sReject': (lambda message: Message(cmd='sReject')),
+        'sExit': (lambda message: Message(cmd='sExit', cid=message['cId'])),
+        'sBye': (lambda message: Message(cmd='sBye', cid=message['cId'])),
+        'sError': (lambda message: Message(cmd='sError', msg=message['eMsg'])),
+        'rLookup': (lambda message: Message(cmd='rLookup', cid=message['cId'], nmaxroom=message['nMaxRoom'])),
+        'rList': (lambda message: Message(cmd='rList', cid=message['cId'], roomlist=message['roomList'])),
+        'rJoin': (lambda message: Message(cmd='rJoin', cid=message['cId'], rid=message['rId'])),
+        'rJAccept': (lambda message: Message(cmd='rJAccept', cid=message['cId'], rid=message['rId'])),
+        'rJReject': (lambda message: Message(cmd='rJReject', cid=message['cId'], rid=message['rId'])),
+        'rMsg': (lambda message: Message(cmd='rMsg', cid=message['cIdSrc'], ciddest=message['cIdDest'], rid=message['rId'], msg=message['msg'])),
+        'rBMsg': (lambda message: Message(cmd='rBMsg', cid=message['cIdSrc'], ciddest=message['cIdDest'], rid=message['rId'],  msg=message['msg'])),
+        'rExit': (lambda message: Message(cmd='rExit', cid=message['cId'], rid=message['rId'])),
+        'rBye': (lambda message: Message(cmd='rBye', cid=message['cId'], rid=message['rId'])),
+        'rExitAll': (lambda message: Message(cmd='rExitAll', cid=message['cId'])),
+        'rError': (lambda message: Message(cmd='rError', cid=message['cId'], msg=message['eMsg']))
     }
 
     @staticmethod
-    def parse_from_json(json_string):
-        request = json.loads(json_string)
+    def load_message(data):
+        # load json object from string
+        obj = json.loads(data)
+
+        # decode object to message
         try:
-            return CGwRequestHelper.decode_functions[(request['cmd'])](request)
+            return MessageHelper.decode_functions[(obj['cmd'])](obj)
         except Exception as e:
-            return CGwRequest(cmd='sError', msg=e.__str__())
+            return Message(cmd='sError', msg=e.__str__())
 
     @staticmethod
-    def parse_to_json(request):
+    def dump_message(message):
+        # get json object from message
+        obj = MessageHelper.encode_functions[message.cmd](message)
+
+        # dumps json object to data
         try:
-            return json.dumps(CGwRequestHelper.encode_functions[request.cmd](request))
+            return json.dumps(obj)
         except Exception as e:
-            return json.dumps(CGwRequestHelper.encode_functions['sError'](CGwRequest(cmd='sError', msg=e.__str__())))
+            return json.dumps(MessageHelper.encode_functions['sError'](
+                Message(cmd='sError', msg=e.__str__())))
