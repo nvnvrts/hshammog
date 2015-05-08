@@ -129,6 +129,7 @@ class Gateway(server.AbstractServer):
     def on_client_r_lookup(self, client, message):
         room_list = []
 
+        # gather room list from zk node data
         for room_server in self.zk_client.get_children(self.zk_room_servers_path):
             path = self.zk_room_servers_path + room_server
             data, stat = self.zk_client.get(path)
