@@ -1,6 +1,6 @@
-import socket
 import logging
 from kazoo.client import KazooClient
+import core.config as config
 from core.protocol import *
 import core.server as server
 
@@ -9,10 +9,7 @@ logging.basicConfig()
 class Gateway(server.AbstractServer):
     """ Gateway """
 
-    def __init__(self,
-                 client_listen_port,
-                 mq_host, mq_pub_port, mq_sub_port,
-                 zk_path, zk_hosts):
+    def __init__(self, client_listen_port, mq_host, mq_pub_port, mq_sub_port, zk_node, zk_hosts):
         server.AbstractServer.__init__(self, "gateway")
 
         # connect to mq as a gateway
@@ -21,15 +18,16 @@ class Gateway(server.AbstractServer):
         # zookeeper client setup
         self.zk_client = KazooClient(hosts=zk_hosts)
         self.zk_client.start()
-        self.zk_gateways_path = "/hshammog/" + zk_path + "/gateways"
-        self.zk_rooms_path = "/hshammog/" + zk_path + "/rooms"
-        self.zk_client.ensure_path(self.zk_gateways_path)
-        self.zk_client.ensure_path(self.zk_rooms_path)
-        print self.zk_gateways_path, self.zk_rooms_path
-        self.zk_node = self.zk_client.create(self.zk_gateways_path,
-                                             b"0 %s" % self.id,
-                                             ephemeral=True,
-                                             sequence=True)
+
+        self.zk_gateway_servers_path = config.ZK_ROOT + zk_node + config.ZK_GATEWAY_SERVER_PATH
+        self.zk_client.ensure_path(self.zk_gateway_servers_path)
+
+        self.zk_room_servers_path = config.ZK_ROOT + zk_node + config.ZK_ROOM_SERVER_PATH
+        self.zk_client.ensure_path(self.zk_room_servers_path)
+
+        node = self.zk_client.create(path=self.zk_gateway_servers_path + self.id,
+                                     value=b"{}", ephemeral=True, sequence=False)
+        print "zk node %s created." % node
 
         # mq message handlers
         self.mq_hanlders = {
@@ -129,8 +127,12 @@ class Gateway(server.AbstractServer):
         self.send_message(client, Message(cmd='sAccept', cid=client.get_id()))
 
     def on_client_r_lookup(self, client, message):
-        # TODO: get room list from manager
-        room_list = {}
+        room_list = []
+
+        for room_server in self.zk_client.get_children(self.zk_room_servers_path):
+            path = self.zk_room_servers_path + room_server
+            data, stat = self.zk_client.get(path)
+            room_list.extend(json.loads(data))
 
         self.send_message(client, Message(cmd='rList', roomlist=room_list, cid=client.get_id()))
 

@@ -61,8 +61,12 @@ class TestClient(protocol.Protocol):
         self.send_message(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
 
     def on_s_list(self, message):
-        # TODO: choose a room in the room list
-        room_id = 1
+        print "room list:", message.roomlist
+
+        room_id = 0
+        if message.roomlist:
+            # join in the first room
+            room_id = message.roomlist[0]
 
         # send command to join the room
         self.send_message(Message(cmd='rJoin', cid=self.cid, rid=room_id))
@@ -77,7 +81,9 @@ class TestClient(protocol.Protocol):
         self.send_message(Message(cmd='rMsg', cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
 
     def on_r_j_reject(self, message):
-        # send command to get room list
+        print "join rejected reason:", message.msg
+
+        # send command to get room list again
         self.send_message(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
 
     def on_r_b_msg(self, message):
