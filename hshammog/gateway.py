@@ -10,7 +10,7 @@ class Gateway(server.AbstractServer):
     """ Gateway """
 
     def __init__(self,
-                 client_port,
+                 client_listen_port,
                  mq_host, mq_pub_port, mq_sub_port,
                  zk_path, zk_hosts):
         server.AbstractServer.__init__(self, "gateway")
@@ -21,13 +21,15 @@ class Gateway(server.AbstractServer):
         # zookeeper client setup
         self.zk_client = KazooClient(hosts=zk_hosts)
         self.zk_client.start()
-        self.zk_gateways_path = "/" + zk_path + "/gateways"
-        self.zk_rooms_path = "/" + zk_path + "/rooms"
-        self.zk_client.zk_ensure_path(self.zk_gateways_path)
-        self.zk_client.zk_ensure_path(self.zk_rooms_path)
-        ip = socket.gethostbyname(socket.gethostname())
+        self.zk_gateways_path = "/hshammog/" + zk_path + "/gateways"
+        self.zk_rooms_path = "/hshammog/" + zk_path + "/rooms"
+        self.zk_client.ensure_path(self.zk_gateways_path)
+        self.zk_client.ensure_path(self.zk_rooms_path)
+        print self.zk_gateways_path, self.zk_rooms_path
         self.zk_node = self.zk_client.create(self.zk_gateways_path,
-                                             b"0 %s" % ip, ephemeral=True, sequence=True)
+                                             b"0 %s" % self.id,
+                                             ephemeral=True,
+                                             sequence=True)
 
         # mq message handlers
         self.mq_hanlders = {
@@ -50,7 +52,7 @@ class Gateway(server.AbstractServer):
 
         # start accepting client
         self.clients = {}
-        self.listen_client(client_port)
+        self.listen_client(client_listen_port)
 
     def publish_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
