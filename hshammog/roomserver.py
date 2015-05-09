@@ -131,7 +131,7 @@ class RoomServer(server.AbstractServer):
                                              msg=message.msg))
             room.foreach(func)
         else:
-            #print "room %s not found" % message.rid
+            print "room %s for rMsg not found" % message.rid
             pass
 
     def on_mq_r_exit(self, server_id, message):
@@ -144,7 +144,7 @@ class RoomServer(server.AbstractServer):
             self.publish_message(server_id,
                                  Message(cmd='rBye', cid=message.cid, rid=message.rid))
         else:
-            #print "room %s not found" % message.rid
+            print "room %s for rExit not found" % message.rid
             pass
 
     def on_mq_r_exit_all(self, server_id, message):

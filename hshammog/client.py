@@ -27,6 +27,8 @@ class TestClient(protocol.Protocol):
         self.count = 0
 
     def connectionMade(self):
+        peer = self.transport.getPeer()
+        print "connected to", peer.host, peer.port
         # send the first message
         self.send_message(Message(cmd='sConnect'))
 
@@ -43,6 +45,10 @@ class TestClient(protocol.Protocol):
             self.data_receive_buffer = lines[1]
             message = MessageHelper.load_message(lines[0])
             self.on_message_received(message)
+
+    def connectionLost(self, reason):
+        print "connection closed", reason
+        reactor.connectTCP("127.0.0.1", 18888, TestClientFactory())
 
     def send_message(self, message):
         data = message.dumps()
@@ -87,15 +93,18 @@ class TestClient(protocol.Protocol):
         self.send_message(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
 
     def on_r_b_msg(self, message):
+
         # if received message is from mine,
         # send another message until count limit exceeds
         if message.cid == self.cid:
+            print "%s:%s# %s" % (message.rid, self.cid, message.msg)
+
             if self.count < 1000:
                 self.count += 1
                 text = "%s %d" % (self.cid, self.count)
+
                 # send command to broadcast a message
-                self.send_message(Message(cmd='rMsg',
-                                          cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
+                self.send_message(Message(cmd='rMsg', cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
             else:
                 # send command to exit from the room
                 self.send_message(Message(cmd='rExit', cid=self.cid, rid=message.rid))
@@ -107,11 +116,8 @@ class TestClient(protocol.Protocol):
         self.send_message(Message(cmd='sExit', cid=self.cid))
 
     def on_s_bye(self, message):
-        # reset client id
-        self.cid = None
-
-        # send the first message
-        self.send_message(Message(cmd='sConnect'))
+        # close connection
+        self.transport.loseConnection()
 
     def on_r_error(self, message):
         print "server error %s" % message.msg
