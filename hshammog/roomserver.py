@@ -56,10 +56,14 @@ class RoomServer(server.AbstractServer):
 
     def update_zk_node_data(self):
         path = self.zk_room_servers_path + self.id
-        data = self.rooms.keys()
+        data = []
+
+        for rid, room in self.rooms.iteritems():
+            if not room.is_full():
+                data.append(rid)
 
         # set node data with room id list
-        print json.dumps(data)
+        #print json.dumps(data)
         self.zk_client.set(path, json.dumps(data))
 
     def publish_message(self, tag, message):
@@ -79,7 +83,7 @@ class RoomServer(server.AbstractServer):
 
     def on_mq_r_join(self, server_id, message):
         room_id = None
-        reason = ''
+        reason = 'unknown error'
 
         if message.rid == 0:
             # find a non-full room
@@ -96,13 +100,19 @@ class RoomServer(server.AbstractServer):
                 room_id = room.get_id()
         else:
             room = self.rooms.get(message.rid)
-            if room and not room.is_full():
-                room.join(message.cid, server_id)
-                room_id = room.get_id()
+            if room:
+                if room.is_full():
+                    reason = 'room is full'
+                else:
+                    room.join(message.cid, server_id)
+                    room_id = room.get_id()
             else:
                 reason = 'room not found'
+                print "room %s not found" % message.rid
 
         if room_id:
+            self.update_zk_node_data()
+
             self.publish_message(server_id,
                                  Message(cmd='rJAccept', cid=message.cid, rid=room_id))
         else:

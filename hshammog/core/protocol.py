@@ -57,7 +57,7 @@ class MessageHelper(object):
         'rList': (lambda message: Message(cmd='rList', cid=message['cId'], roomlist=message['roomList'])),
         'rJoin': (lambda message: Message(cmd='rJoin', cid=message['cId'], rid=message['rId'])),
         'rJAccept': (lambda message: Message(cmd='rJAccept', cid=message['cId'], rid=message['rId'])),
-        'rJReject': (lambda message: Message(cmd='rJReject', cid=message['cId'], rid=message['rId'])),
+        'rJReject': (lambda message: Message(cmd='rJReject', cid=message['cId'], rid=message['rId'], msg=message['msg'])),
         'rMsg': (lambda message: Message(cmd='rMsg', cid=message['cIdSrc'], ciddest=message['cIdDest'], rid=message['rId'], msg=message['msg'])),
         'rBMsg': (lambda message: Message(cmd='rBMsg', cid=message['cIdSrc'], ciddest=message['cIdDest'], rid=message['rId'],  msg=message['msg'])),
         'rExit': (lambda message: Message(cmd='rExit', cid=message['cId'], rid=message['rId'])),

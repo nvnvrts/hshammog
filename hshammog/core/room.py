@@ -26,13 +26,13 @@ class Room:
 
     def join(self, member_id, value):
         self.members[member_id] = value
-        print "%s joins room %s" % (member_id, self.id)
+        #print "%s joins room %s" % (member_id, self.id)
 
     def leave(self, member_id):
         value = self.members.get(member_id)
         if value:
             del self.members[member_id]
-        print "%s leaves room %s" % (member_id, self.id)
+        #print "%s leaves room %s" % (member_id, self.id)
         return value
 
     def count(self):
