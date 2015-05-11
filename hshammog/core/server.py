@@ -85,23 +85,26 @@ class AbstractServer():
     def on_client_received(self, client, message):
         pass
 
-    def connect_mq(self, host, pub_port, sub_port, tag):
+    def connect_mq(self, host, pub_port, sub_port, *args):
         # publish
         mq_pub_addr = "tcp://%s:%d" % (host, pub_port)
         mq_pub_endpoint = txzmq.ZmqEndpoint("connect", mq_pub_addr)
         self.mq_pub = txzmq.ZmqPubConnection(self.factory, mq_pub_endpoint)
-        print "mq pub connected to", mq_pub_addr
 
         # subscribe
         mq_sub_addr = "tcp://%s:%d" % (host, sub_port)
         mq_sub_endpoint = txzmq.ZmqEndpoint("connect", mq_sub_addr)
         self.mq_sub = txzmq.ZmqSubConnection(self.factory, mq_sub_endpoint)
-        print "mq sub connected to", mq_sub_addr, tag
 
-        self.mq_sub.subscribe(tag)
-        def on_sub(data, tag):
-            self.on_mq_data_received(tag, data)
-        self.mq_sub.gotMessage = on_sub
+        for tag in args:
+            self.mq_sub.subscribe(tag)
+
+            def on_sub(data, tag):
+                self.on_mq_data_received(tag, data)
+
+            self.mq_sub.gotMessage = on_sub
+
+        print "mq pubsub connected to", mq_pub_addr, mq_sub_addr, args
 
     def publish_mq(self, tag, data):
         if self.mq_pub:
@@ -109,9 +112,9 @@ class AbstractServer():
         else:
             pass
 
-    def on_mq_data_received(self, data):
+    def on_mq_data_received(self, tag, data):
         pass
 
     def run(self):
-        print "running...", self.id
+        print self.id, "running..."
         reactor.run()

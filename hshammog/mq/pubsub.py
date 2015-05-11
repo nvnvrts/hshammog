@@ -27,6 +27,3 @@ class PubSub():
             pub.close()
             sub.close()
             context.term()
-
-
-

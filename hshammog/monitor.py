@@ -25,7 +25,6 @@ class Monitor(server.AbstractServer):
         def watch_roomservers(roomservers):
             self.on_zk_roomservers(roomservers)
 
-
     def on_zk_gateways(self, gateways):
         # find out new gateways
         new_gateways = [x for x in gateways if x not in self.gateways]

@@ -17,8 +17,7 @@ class RoomServer(server.AbstractServer):
         self.rooms = {}
 
         # connect to mq as a echo server
-        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "roomserver-allserver")
-        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, self.id)
+        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "roomserver-allserver", self.id)
 
         # zookeeper client setup
         node = self.zk_client.create(path=self.zk_room_servers_path + self.id,

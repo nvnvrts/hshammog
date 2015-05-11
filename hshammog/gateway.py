@@ -28,7 +28,7 @@ class Gateway(server.AbstractServer):
         print "gateway zk node %s created." % node
 
         # mq message handlers
-        self.mq_hanlders = {
+        self.mq_handlers = {
             'rJAccept': self.on_mq_r_j_accept,
             'rJReject': self.on_mq_r_j_reject,
             'rBMsg': self.on_mq_r_b_msg,
@@ -97,7 +97,7 @@ class Gateway(server.AbstractServer):
         message = MessageHelper.load_message(payload)
 
         # invoke mq message handler
-        self.mq_hanlders[message.cmd](message)
+        self.mq_handlers[message.cmd](message)
 
     def on_mq_r_j_accept(self, message):
         client = self.clients.get(message.cid)
@@ -180,7 +180,8 @@ class Gateway(server.AbstractServer):
             if roomservers:
                 server_id = random.choice(roomservers)
             else:
-                self.send_message(client, cmd='rJReject', cid=message.cid, rid=message.rid, msg='no room servers')
+                self.send_message(client,
+                                  Message(cmd='rJReject', cid=message.cid, rid=message.rid, msg='no room servers'))
                 return
         else:
             self.get_zk_roomserver(message.rid)
@@ -205,6 +206,8 @@ class Gateway(server.AbstractServer):
 
 
 if __name__ == '__main__':
+    zk_path = 'test'
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_path="])
     except getopt.GetoptError:
