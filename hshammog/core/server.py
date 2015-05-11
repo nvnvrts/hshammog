@@ -71,6 +71,30 @@ class AbstractServer():
 
         self.zk_room_rooms_path = config.ZK_ROOT + zk_path + config.ZK_ROOM_ROOMS_PATH
         self.zk_client.ensure_path(self.zk_room_rooms_path)
+        
+        self.roomservers = []
+
+    def watch_zk_roomservers(self):
+        @self.zk_client.ChildrenWatch(self.zk_room_servers_path)
+        def watch_roomservers(roomservers):
+            # find out roomservers added
+            added = [x for x in roomservers if x not in self.roomservers]
+            if added:
+                self.on_zk_roomserver_added(added)
+
+            # find out roomservers removed
+            removed = [x for x in self.roomservers if x not in roomservers]
+            if removed:
+                self.on_zk_roomserver_removed(removed)
+
+            # update list
+            self.roomservers = roomservers
+
+    def on_zk_roomserver_added(self, roomservers):
+        pass
+
+    def on_zk_roomserver_removed(self, roomservers):
+        pass
 
     def listen_client(self, port):
         print "listening tcp %d..." % port

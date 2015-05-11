@@ -1,5 +1,5 @@
 from time import sleep
-from twisted.internet import protocol, reactor
+from twisted.internet import protocol, task, reactor
 from core.protocol import *
 
 class TestClient(protocol.Protocol):
@@ -25,6 +25,7 @@ class TestClient(protocol.Protocol):
         }
 
         self.count = 0
+        self.task = None
 
     def connectionMade(self):
         peer = self.transport.getPeer()
@@ -81,10 +82,19 @@ class TestClient(protocol.Protocol):
         # reset count
         self.count = 0
 
-        text = 'hello ' + self.cid
+        def send_msg():
+            if self.count < 1000:
+                # send command to broadcast a message
+                self.count += 1
+                text = "%s %d" % (self.cid, self.count)
+                self.send_message(Message(cmd='rMsg',
+                                          cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
+            else:
+                # send command to exit from the room
+                self.send_message(Message(cmd='rExit', cid=self.cid, rid=message.rid))
 
-        # send command to broadcast a message
-        self.send_message(Message(cmd='rMsg', cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
+        # start task
+        self.task = task.LoopingCall(send_msg).start(1.0 / 20)
 
     def on_r_j_reject(self, message):
         print "join rejected reason:", message.msg
@@ -93,25 +103,15 @@ class TestClient(protocol.Protocol):
         self.send_message(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
 
     def on_r_b_msg(self, message):
-
-        # if received message is from mine,
-        # send another message until count limit exceeds
         if message.cid == self.cid:
             print "%s:%s# %s" % (message.rid, self.cid, message.msg)
-
-            if self.count < 1000:
-                self.count += 1
-                text = "%s %d" % (self.cid, self.count)
-
-                # send command to broadcast a message
-                self.send_message(Message(cmd='rMsg', cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
-            else:
-                # send command to exit from the room
-                self.send_message(Message(cmd='rExit', cid=self.cid, rid=message.rid))
         else:
             print "%s:%s> %s" % (message.rid, self.cid, message.msg)
 
     def on_r_bye(self, message):
+        # stop task
+        self.task.stop()
+
         # send command to exit from the server
         self.send_message(Message(cmd='sExit', cid=self.cid))
 

@@ -2,7 +2,9 @@ import sys
 import getopt
 import random
 import logging
+from kazoo.exceptions import *
 from core.protocol import *
+from core.exceptions import *
 import core.server as server
 
 logging.basicConfig()
@@ -26,6 +28,8 @@ class Gateway(server.AbstractServer):
                                      ephemeral=True,
                                      sequence=False)
         print "gateway zk node %s created." % node
+
+        self.watch_zk_roomservers()
 
         # mq message handlers
         self.mq_handlers = {
@@ -64,20 +68,33 @@ class Gateway(server.AbstractServer):
 
     def get_zk_roomserver(self, rid):
         server_id = self.server_id_cache.get(rid)
-        if server_id:
-            return server_id
-        else:
+        if not server_id:
             path = self.zk_room_rooms_path + rid
-            data, stat = self.zk_client.get(path)
+
+            try:
+                data, stat = self.zk_client.get(path)
+            except NoNodeError as e:
+                raise RoomServerNotFoundError(rid)
+
             room_data = json.loads(data)
             server_id = room_data['server_id']
-
             self.server_id_cache[rid] = server_id
 
-            return server_id
+        return server_id
 
     def get_zk_roomserver_list(self):
         return self.zk_client.get_children(self.zk_room_servers_path)
+
+    def on_zk_roomserver_added(self, roomservers):
+        print "roomservers added", roomservers
+
+    def on_zk_roomserver_removed(self, roomservers):
+        print "roomservers removed", roomservers
+        for roomserver in roomservers:
+            for rid in self.server_id_cache.keys():
+                server_id = self.server_id_cache.get(rid)
+                if server_id == roomserver:
+                    del self.server_id_cache[rid]
 
     def publish_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
@@ -193,10 +210,18 @@ class Gateway(server.AbstractServer):
         self.publish_message(server_id, message)
 
     def on_client_r_msg(self, client, message):
-        self.publish_message(self.get_zk_roomserver(message.rid), message)
+        try:
+            server_id = self.get_zk_roomserver(message.rid)
+            self.publish_message(server_id, message)
+        except RoomServerNotFoundError as e:
+            self.send_message(client, Message(cmd='rBye', cid=message.cid, rid=message.rid))
 
     def on_client_r_exit(self, client, message):
-        self.publish_message(self.get_zk_roomserver(message.rid), message)
+        try:
+            server_id = self.get_zk_roomserver(message.rid)
+            self.publish_message(server_id, message)
+        except RoomServerNotFoundError as e:
+            self.send_message(client, Message(cmd='rBye', cid=message.cid, rid=message.rid))
 
     def on_client_s_exit(self, client, message):
         self.send_message(client, Message(cmd='sBye', cid=client.get_id()))
