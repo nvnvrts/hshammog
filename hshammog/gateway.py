@@ -1,3 +1,5 @@
+import sys
+import getopt
 import logging
 from kazoo.client import KazooClient
 import core.config as config
@@ -154,5 +156,18 @@ class Gateway(server.AbstractServer):
 
 
 if __name__ == '__main__':
-    server = Gateway(18888, '127.0.0.1', 5561, 5562, "ykwon", "192.168.0.16:2181")
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_node="])
+    except getopt.GetoptError:
+        print "usage: gateway.py -z <zookeeper node>"
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == '-h':
+            print "usage: gateway.py -z <zookeeper node>"
+        elif opt in ("-z", "--zk_node"):
+            zk_node = arg
+
+    # start a gateway
+    server = Gateway(18888, '127.0.0.1', 5561, 5562, zk_node, "192.168.0.16:2181")
     server.run()
