@@ -1,35 +1,31 @@
 import sys
 import getopt
+import random
 import logging
-from kazoo.client import KazooClient
-import core.config as config
 from core.protocol import *
 import core.server as server
 
 logging.basicConfig()
 
+
 class Gateway(server.AbstractServer):
     """ Gateway """
 
-    def __init__(self, client_listen_port, mq_host, mq_pub_port, mq_sub_port, zk_node, zk_hosts):
-        server.AbstractServer.__init__(self, "gateway")
+    def __init__(self,
+                 client_listen_port,
+                 mq_host, mq_pub_port, mq_sub_port,
+                 zk_hosts, zk_path):
+        server.AbstractServer.__init__(self, "gateway", zk_hosts, zk_path)
 
         # connect to mq as a gateway
         self.connect_mq(mq_host, mq_pub_port, mq_sub_port, self.id)
 
-        # zookeeper client setup
-        self.zk_client = KazooClient(hosts=zk_hosts)
-        self.zk_client.start()
-
-        self.zk_gateway_servers_path = config.ZK_ROOT + zk_node + config.ZK_GATEWAY_SERVER_PATH
-        self.zk_client.ensure_path(self.zk_gateway_servers_path)
-
-        self.zk_room_servers_path = config.ZK_ROOT + zk_node + config.ZK_ROOM_SERVER_PATH
-        self.zk_client.ensure_path(self.zk_room_servers_path)
-
+        # zookeeper setup
         node = self.zk_client.create(path=self.zk_gateway_servers_path + self.id,
-                                     value=b"{}", ephemeral=True, sequence=False)
-        print "zk node %s created." % node
+                                     value=b"{}",
+                                     ephemeral=True,
+                                     sequence=False)
+        print "gateway zk node %s created." % node
 
         # mq message handlers
         self.mq_hanlders = {
@@ -54,18 +50,38 @@ class Gateway(server.AbstractServer):
         self.clients = {}
         self.listen_client(client_listen_port)
 
+        # cache for mapping room id to room server id
+        self.server_id_cache = {}
+
     def update_zk_node_data(self):
         path = self.zk_gateway_servers_path + self.id
-
-        data = {}
-        data['num_clients'] = len(self.clients)
+        data = {
+            'num_clients': len(self.clients)
+        }
 
         # set node data
         self.zk_client.set(path, json.dumps(data))
 
+    def get_zk_roomserver(self, rid):
+        server_id = self.server_id_cache.get(rid)
+        if server_id:
+            return server_id
+        else:
+            path = self.zk_room_rooms_path + rid
+            data, stat = self.zk_client.get(path)
+            room_data = json.loads(data)
+            server_id = room_data['server_id']
+
+            self.server_id_cache[rid] = server_id
+
+            return server_id
+
+    def get_zk_roomserver_list(self):
+        return self.zk_client.get_children(self.zk_room_servers_path)
+
     def publish_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
-        self.publish_mq(tag, data)
+        self.publish_mq(str(tag), data)
         #print "PUB", tag, data
 
     def send_message(self, client, message):
@@ -126,8 +142,9 @@ class Gateway(server.AbstractServer):
         del self.clients[client.get_id()]
 
         self.update_zk_node_data()
-        self.publish_message("server", Message(cmd='rExitAll', cid=client.get_id()))
 
+        # send message to all room servers
+        self.publish_message("roomserver-allserver", Message(cmd='rExitAll', cid=client.get_id()))
 
     def on_client_data_received(self, client, data):
         #print "RCV", "client %s" % client.get_id(), data
@@ -145,7 +162,7 @@ class Gateway(server.AbstractServer):
         room_list = []
 
         # gather room list from zk node data
-        for room_server in self.zk_client.get_children(self.zk_room_servers_path):
+        for room_server in self.get_zk_roomserver_list():
             path = self.zk_room_servers_path + room_server
             data, stat = self.zk_client.get(path)
             for rid, values in json.loads(data).iteritems():
@@ -157,13 +174,28 @@ class Gateway(server.AbstractServer):
         self.send_message(client, Message(cmd='rList', roomlist=room_list, cid=client.get_id()))
 
     def on_client_r_join(self, client, message):
-        self.publish_message("server", message)
+        if message.rid == 0:
+            # gateway chooses one
+            roomservers = self.get_zk_roomserver_list()
+            if roomservers:
+                server_id = random.choice(roomservers)
+            else:
+                self.send_message(client, cmd='rJReject', cid=message.cid, rid=message.rid, msg='no room servers')
+                return
+        else:
+            self.get_zk_roomserver(message.rid)
+            path = self.zk_room_rooms_path + message.rid
+            data, stat = self.zk_client.get(path)
+            room_data = json.loads(data)
+            server_id = room_data['server_id']
+
+        self.publish_message(server_id, message)
 
     def on_client_r_msg(self, client, message):
-        self.publish_message("server", message)
+        self.publish_message(self.get_zk_roomserver(message.rid), message)
 
     def on_client_r_exit(self, client, message):
-        self.publish_message("server", message)
+        self.publish_message(self.get_zk_roomserver(message.rid), message)
 
     def on_client_s_exit(self, client, message):
         self.send_message(client, Message(cmd='sBye', cid=client.get_id()))
@@ -174,17 +206,17 @@ class Gateway(server.AbstractServer):
 
 if __name__ == '__main__':
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_node="])
+        opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_path="])
     except getopt.GetoptError:
-        print "usage: gateway.py -z <zookeeper node>"
+        print "usage: gateway.py -z <zookeeper path>"
         sys.exit(2)
 
     for opt, arg in opts:
         if opt == '-h':
-            print "usage: gateway.py -z <zookeeper node>"
-        elif opt in ("-z", "--zk_node"):
-            zk_node = arg
+            print "usage: gateway.py -z <zookeeper path>"
+        elif opt in ("-z", "--zk_path"):
+            zk_path = arg
 
     # start a gateway
-    server = Gateway(18888, '127.0.0.1', 5561, 5562, zk_node, "192.168.0.16:2181")
+    server = Gateway(18888, '127.0.0.1', 5561, 5562, "192.168.0.16:2181", zk_path)
     server.run()

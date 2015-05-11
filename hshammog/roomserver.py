@@ -1,8 +1,6 @@
 import sys
 import getopt
 import logging
-from kazoo.client import KazooClient
-import core.config as config
 import core.server as server
 import core.room as core_room
 from core.protocol import *
@@ -11,27 +9,21 @@ from core.protocol import *
 class RoomServer(server.AbstractServer):
     """ Room Server """
 
-    def __init__(self, mq_host, mq_pub_port, mq_sub_port, zk_node, zk_hosts):
-        server.AbstractServer.__init__(self, "roomserver")
+    def __init__(self,
+                 mq_host, mq_pub_port, mq_sub_port,
+                 zk_hosts, zk_path):
+        server.AbstractServer.__init__(self, "roomserver", zk_hosts, zk_path)
 
         self.rooms = {}
 
         # connect to mq as a echo server
-        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "server")
+        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, "roomserver-allserver")
+        self.connect_mq(mq_host, mq_pub_port, mq_sub_port, self.id)
 
         # zookeeper client setup
-        self.zk_client = KazooClient(hosts=zk_hosts)
-        self.zk_client.start()
-
-        self.zk_gateway_servers_path = config.ZK_ROOT + zk_node + config.ZK_GATEWAY_SERVER_PATH
-        self.zk_client.ensure_path(self.zk_gateway_servers_path)
-
-        self.zk_room_servers_path = config.ZK_ROOT + zk_node + config.ZK_ROOM_SERVER_PATH
-        self.zk_client.ensure_path(self.zk_room_servers_path)
-
         node = self.zk_client.create(path=self.zk_room_servers_path + self.id,
                                      value=b"{}", ephemeral=True, sequence=False)
-        print "zk node %s created." % node
+        print "roomserver zk node %s created." % node
 
         # mq message handler
         self.mq_handlers = {
@@ -45,16 +37,40 @@ class RoomServer(server.AbstractServer):
         room = core_room.Room(2)
         self.rooms[room.get_id()] = room
 
+        data = {
+            'count': room.count(),
+            'max': room.max_members,
+            'server_id': self.id
+        }
+
+        # create a new node for the room
+        self.zk_client.create(path=self.zk_room_rooms_path + room.get_id(),
+                              value=json.dumps(data),
+                              ephemeral=True,
+                              sequence=False)
+
         # update zookeeper node data
         self.update_zk_node_data()
 
         return room
 
     def delete_room(self, room):
+        # create node for the room
+        self.zk_client.delete(path=self.zk_room_rooms_path + room.get_id())
+
         del self.rooms[room.get_id()]
 
         # update zookeeper node data
         self.update_zk_node_data()
+
+    def update_room(self, room):
+        data = {
+            'count': room.count(),
+            'max': room.max_members,
+            'server_id': self.id
+        }
+
+        self.zk_client.set(self.zk_room_rooms_path + room.get_id(), json.dumps(data))
 
     def update_zk_node_data(self):
         path = self.zk_room_servers_path + self.id
@@ -91,6 +107,7 @@ class RoomServer(server.AbstractServer):
             for rid, room in self.rooms.iteritems():
                 if not room.is_full():
                     room.join(message.cid, server_id)
+                    self.update_room(room)
                     room_id = rid
                     break
 
@@ -98,6 +115,7 @@ class RoomServer(server.AbstractServer):
             if not room_id:
                 room = self.create_room()
                 room.join(message.cid, server_id)
+                self.update_room(room)
                 room_id = room.get_id()
         else:
             room = self.rooms.get(message.rid)
@@ -106,6 +124,7 @@ class RoomServer(server.AbstractServer):
                     reason = 'room is full'
                 else:
                     room.join(message.cid, server_id)
+                    self.update_room(room)
                     room_id = room.get_id()
             else:
                 reason = 'room not found'
@@ -133,20 +152,22 @@ class RoomServer(server.AbstractServer):
             room.foreach(func)
         else:
             print "room %s for rMsg not found" % message.rid
-            pass
 
     def on_mq_r_exit(self, server_id, message):
         room = self.rooms.get(message.rid)
         if room:
             room.leave(message.cid)
+
             if room.is_empty():
                 self.delete_room(room)
+            else:
+                self.update_room(room)
 
             self.publish_message(server_id,
                                  Message(cmd='rBye', cid=message.cid, rid=message.rid))
         else:
             print "room %s for rExit not found" % message.rid
-            pass
+
 
     def on_mq_r_exit_all(self, server_id, message):
         for rid in self.rooms.keys():
@@ -155,21 +176,23 @@ class RoomServer(server.AbstractServer):
                 room.leave(message.cid)
                 if room.is_empty():
                     self.delete_room(room)
+                else:
+                    self.update_room(room)
 
 
 if __name__ == '__main__':
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_node="])
+        opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_path="])
     except getopt.GetoptError:
-        print "usage: roomserver.py -z <zookeeper node>"
+        print "usage: roomserver.py -z <zookeeper path>"
         sys.exit(2)
 
     for opt, arg in opts:
         if opt == '-h':
-            print "usage: roomserver.py -z <zookeeper node>"
-        elif opt in ("-z", "--zk_node"):
-            zk_node = arg
+            print "usage: roomserver.py -z <zookeeper path>"
+        elif opt in ("-z", "--zk_path"):
+            zk_path = arg
 
     # start a roomserver
-    server = RoomServer('127.0.0.1', 5561, 5562, zk_node, "192.168.0.16:2181")
+    server = RoomServer('127.0.0.1', 5561, 5562, "192.168.0.16:2181", zk_path)
     server.run()

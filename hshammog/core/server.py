@@ -3,6 +3,8 @@ import zlib
 import ctypes
 from twisted.internet import protocol, reactor
 import txzmq
+from kazoo.client import KazooClient
+import config
 
 
 class AbstractClient(protocol.Protocol):
@@ -51,11 +53,24 @@ class AbstractFactory(protocol.ClientFactory):
 class AbstractServer():
     """ Abstract Server """
 
-    def __init__(self, type):
+    def __init__(self, prefix, zk_hosts, zk_path):
         # use random uuid as a new server id
-        self.id = "%s-%x" % (type, ctypes.c_uint(hash(zlib.adler32(uuid.uuid4().hex))).value)
+        self.id = "%s-%x" % (prefix, ctypes.c_uint(hash(zlib.adler32(uuid.uuid4().hex))).value)
 
         self.factory = txzmq.ZmqFactory()
+
+        # zookeeper setup
+        self.zk_client = KazooClient(hosts=zk_hosts)
+        self.zk_client.start()
+
+        self.zk_gateway_servers_path = config.ZK_ROOT + zk_path + config.ZK_GATEWAY_SERVER_PATH
+        self.zk_client.ensure_path(self.zk_gateway_servers_path)
+
+        self.zk_room_servers_path = config.ZK_ROOT + zk_path + config.ZK_ROOM_SERVER_PATH
+        self.zk_client.ensure_path(self.zk_room_servers_path)
+
+        self.zk_room_rooms_path = config.ZK_ROOT + zk_path + config.ZK_ROOM_ROOMS_PATH
+        self.zk_client.ensure_path(self.zk_room_rooms_path)
 
     def listen_client(self, port):
         print "listening tcp %d..." % port
@@ -98,5 +113,5 @@ class AbstractServer():
         pass
 
     def run(self):
-        print "running..."
+        print "running...", self.id
         reactor.run()

@@ -10,29 +10,21 @@ import core.server as server
 class Monitor(server.AbstractServer):
     """ Monitor """
 
-    def __init__(self, zk_hosts, zk_node):
-        server.AbstractServer.__init__(self, "monitor")
+    def __init__(self, zk_hosts, zk_path):
+        server.AbstractServer.__init__(self, "monitor", zk_hosts, zk_path)
 
         self.gateways = []
         self.roomservers = []
 
         # zookeeper client setup
-        self.zk_client = KazooClient(hosts=zk_hosts)
-        self.zk_client.start()
-
-        self.zk_gateway_servers_path = config.ZK_ROOT + zk_node + config.ZK_GATEWAY_SERVER_PATH
-        self.zk_client.ensure_path(self.zk_gateway_servers_path)
-
         @self.zk_client.ChildrenWatch(self.zk_gateway_servers_path)
         def watch_gateways(gateways):
             self.on_zk_gateways(gateways)
 
-        self.zk_room_servers_path = config.ZK_ROOT + zk_node + config.ZK_ROOM_SERVER_PATH
-        self.zk_client.ensure_path(self.zk_room_servers_path)
-
         @self.zk_client.ChildrenWatch(self.zk_room_servers_path)
         def watch_roomservers(roomservers):
             self.on_zk_roomservers(roomservers)
+
 
     def on_zk_gateways(self, gateways):
         # find out new gateways
@@ -75,26 +67,26 @@ class Monitor(server.AbstractServer):
                     else:
                         number_available_rooms += 1
 
-                print "%s: avail(%d), empty(%d), full(%d), total(%d)" % (roomserver,
-                                                                         number_available_rooms,
-                                                                         number_empty_rooms,
-                                                                         number_full_rooms,
-                                                                         number_total_rooms)
+                print "%s: available(%d), empty(%d), full(%d), total(%d)" % (roomserver,
+                                                                             number_available_rooms,
+                                                                             number_empty_rooms,
+                                                                             number_full_rooms,
+                                                                             number_total_rooms)
 
 
 if __name__ == "__main__":
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_node="])
+        opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_path="])
     except getopt.GetoptError:
-        print "usage: monitor.py -z <zookeeper node>"
+        print "usage: monitor.py -z <zookeeper path>"
         sys.exit(2)
 
     for opt, arg in opts:
         if opt == '-h':
-            print "usage: monitor.py -z <zookeeper node>"
-        elif opt in ("-z", "--zk_node"):
-            zk_node = arg
+            print "usage: monitor.py -z <zookeeper path>"
+        elif opt in ("-z", "--zk_path"):
+            zk_path = arg
 
     # start a monitor
-    server = Monitor("192.168.0.16:2181", zk_node)
+    server = Monitor("192.168.0.16:2181", zk_path)
     server.run()
