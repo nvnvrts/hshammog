@@ -30,7 +30,7 @@ class RoomServer(server.AbstractServer):
         self.zk_client.ensure_path(self.zk_room_servers_path)
 
         node = self.zk_client.create(path=self.zk_room_servers_path + self.id,
-                                     value=b"[]", ephemeral=True, sequence=False)
+                                     value=b"{}", ephemeral=True, sequence=False)
         print "zk node %s created." % node
 
         # mq message handler
@@ -58,11 +58,10 @@ class RoomServer(server.AbstractServer):
 
     def update_zk_node_data(self):
         path = self.zk_room_servers_path + self.id
-        data = []
+        data = {}
 
         for rid, room in self.rooms.iteritems():
-            if not room.is_full():
-                data.append(rid)
+            data[rid] = {'count': room.count(), 'max': room.max_members}
 
         # set node data with room id list
         #print json.dumps(data)

@@ -54,6 +54,15 @@ class Gateway(server.AbstractServer):
         self.clients = {}
         self.listen_client(client_listen_port)
 
+    def update_zk_node_data(self):
+        path = self.zk_gateway_servers_path + self.id
+
+        data = {}
+        data['num_clients'] = len(self.clients)
+
+        # set node data
+        self.zk_client.set(path, json.dumps(data))
+
     def publish_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
         self.publish_mq(tag, data)
@@ -108,13 +117,17 @@ class Gateway(server.AbstractServer):
         # add client to hash
         self.clients[client.get_id()] = client
 
+        self.update_zk_node_data()
+
     def on_client_close(self, client, reason):
         print client.get_id(), "disconnected"
 
         # remove client from hash
         del self.clients[client.get_id()]
 
+        self.update_zk_node_data()
         self.publish_message("server", Message(cmd='rExitAll', cid=client.get_id()))
+
 
     def on_client_data_received(self, client, data):
         #print "RCV", "client %s" % client.get_id(), data
@@ -135,7 +148,11 @@ class Gateway(server.AbstractServer):
         for room_server in self.zk_client.get_children(self.zk_room_servers_path):
             path = self.zk_room_servers_path + room_server
             data, stat = self.zk_client.get(path)
-            room_list.extend(json.loads(data))
+            for rid, values in json.loads(data).iteritems():
+                if values['count'] == values['max']:
+                    pass
+                else:
+                    room_list.append(rid)
 
         self.send_message(client, Message(cmd='rList', roomlist=room_list, cid=client.get_id()))
 
