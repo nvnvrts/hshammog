@@ -1,7 +1,8 @@
 import sys
 import getopt
 import logging
-import core.server as server
+
+import server as server
 import core.room as core_room
 from core.protocol import *
 

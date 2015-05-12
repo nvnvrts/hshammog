@@ -1,4 +1,7 @@
+import logging
 import zmq
+
+logger = logging.getLogger(__name__)
 
 
 class PubSub():
@@ -18,11 +21,11 @@ class PubSub():
             sub = context.socket(zmq.XPUB)
             sub.bind("tcp://*:%d" % self.sub_port)
 
-            print "mq pub port: %d, sub port: %d" % (self.pub_port, self.sub_port)
+            logger.debug("mq pub port: %d, sub port: %d" % (self.pub_port, self.sub_port))
 
             zmq.device(zmq.QUEUE, pub, sub)
         except Exception as e:
-            print "Exception:", e.message
+            logger.error("Exception: %s" % e.message)
         finally:
             pub.close()
             sub.close()

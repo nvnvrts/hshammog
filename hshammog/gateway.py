@@ -2,16 +2,20 @@ import sys
 import getopt
 import random
 import logging
+
 from kazoo.exceptions import *
+
 from core.protocol import *
 from core.exceptions import *
-import core.server as server
+import server
 
 logger = logging.getLogger(__name__)
 
 
 class Gateway(server.AbstractServer):
-    """ Gateway """
+    """
+    Gateway
+    """
 
     def __init__(self,
                  client_tcp_port, client_websocket_port,

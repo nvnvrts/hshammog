@@ -1,7 +1,12 @@
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Message:
+    """ Message """
+
     def __init__(self, cmd=None, cid=None, ciddest=None,
                  nmaxroom=None, msg=None, rid=None, roomlist=None):
         self.cmd = cmd
@@ -14,13 +19,6 @@ class Message:
 
     def dumps(self):
         return MessageHelper.dump_message(self)
-
-class MessageParseError(Exception):
-    def __init__(self, msg):
-        self.msg = msg
-
-    def __str__(self):
-        return repr(self.value)
 
 
 class MessageHelper(object):
@@ -86,5 +84,6 @@ class MessageHelper(object):
         try:
             return json.dumps(obj)
         except Exception as e:
-            return json.dumps(MessageHelper.encode_functions['sError'](
-                Message(cmd='sError', msg=e.__str__())))
+            return json.dumps(
+                MessageHelper.encode_functions['sError'](
+                    Message(cmd='sError', msg=e.__str__())))

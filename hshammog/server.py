@@ -2,18 +2,22 @@ import uuid
 import zlib
 import ctypes
 import logging
-from twisted.internet import protocol, reactor
+
+from twisted.internet import reactor
 from txws import WebSocketFactory
 import txzmq
 from kazoo.client import KazooClient
+
 from client.tcp.factory import TcpFactory
-import config
+from conf import config
 
 logger = logging.getLogger(__name__)
 
 
 class AbstractServer():
-    """ Abstract Server """
+    """
+    Abstract Server
+    """
 
     def __init__(self, prefix, zk_hosts, zk_path):
         # use random uuid as a new server id

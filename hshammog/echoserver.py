@@ -1,4 +1,4 @@
-import core.server as server
+import server as server
 
 
 class EchoServer(server.AbstractServer):

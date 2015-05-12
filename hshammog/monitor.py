@@ -2,8 +2,8 @@ import sys
 import getopt
 import logging
 import json
-import core.config as config
-import core.server as server
+
+import server as server
 
 logger = logging.getLogger(__name__)
 
