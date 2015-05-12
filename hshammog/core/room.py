@@ -1,7 +1,9 @@
 import uuid
 import zlib
 import ctypes
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Room:
     """ Room """
@@ -13,10 +15,10 @@ class Room:
         self.max_members = max_members
         self.members = {}
 
-        print "room %s created" % self.id
+        logger.info("room %s created" % self.id)
 
     def __del__(self):
-        print "room %s deleted" % self.id
+        logger.info("room %s deleted" % self.id)
 
     def get_id(self):
         return self.id
@@ -26,13 +28,13 @@ class Room:
 
     def join(self, member_id, value):
         self.members[member_id] = value
-        #print "%s joins room %s" % (member_id, self.id)
+        logger.debug("%s joins room %s" % (member_id, self.id))
 
     def leave(self, member_id):
         value = self.members.get(member_id)
         if value:
             del self.members[member_id]
-        #print "%s leaves room %s" % (member_id, self.id)
+        logger.debug("%s leaves room %s" % (member_id, self.id))
         return value
 
     def count(self):
