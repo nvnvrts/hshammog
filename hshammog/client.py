@@ -98,7 +98,8 @@ class TestClient(protocol.Protocol):
                 self.count += 1
                 text = "%s %d" % (self.cid, self.count)
                 self.send_message_to_server(Message(cmd='rMsg',
-                                          cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
+                                                    cid=self.cid, ciddest=-1, rid=message.rid,
+                                                    msg=text))
             else:
                 # send command to exit from the room
                 self.send_message_to_server(Message(cmd='rExit', cid=self.cid, rid=message.rid))
@@ -107,7 +108,7 @@ class TestClient(protocol.Protocol):
         self.task = task.LoopingCall(send_msg).start(1.0 / 60)
 
     def on_r_j_reject(self, message):
-        logger.info("join rejected reason:" % message.msg)
+        logger.info("join rejected reason: %s" % message.msg)
 
         # send command to get room list again
         self.send_message_to_server(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
@@ -119,11 +120,6 @@ class TestClient(protocol.Protocol):
             print "%s:%s> %s" % (message.rid, self.cid, message.msg)
 
     def on_r_bye(self, message):
-        # stop task
-        if self.task:
-            self.task.stop()
-            self.task = None
-
         # send command to exit from the server
         self.send_message_to_server(Message(cmd='sExit', cid=self.cid))
 

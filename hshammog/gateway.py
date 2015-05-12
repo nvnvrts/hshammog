@@ -207,6 +207,7 @@ class Gateway(server.AbstractServer):
                                                     cid=message.cid,
                                                     rid=message.rid,
                                                     msg='no room servers'))
+                return
         else:
             try:
                 server_id = self.get_zk_roomserver(message.rid)
@@ -216,6 +217,7 @@ class Gateway(server.AbstractServer):
                                                     cid=message.cid,
                                                     rid=message.rid,
                                                     msg="room %s does not exist" % message.rid))
+                return
 
         self.pub_message_to_mq(server_id, message)
 
