@@ -82,9 +82,6 @@ class Gateway(server.AbstractServer):
 
         return server_id
 
-    def get_zk_roomserver_list(self):
-        return self.zk_client.get_children(self.zk_room_servers_path)
-
     def on_zk_roomserver_added(self, roomservers):
         print "roomservers added", roomservers
 
@@ -96,15 +93,10 @@ class Gateway(server.AbstractServer):
                 if server_id == roomserver:
                     del self.server_id_cache[rid]
 
-    def publish_message(self, tag, message):
+    def pub_mq_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
         self.publish_mq(str(tag), data)
         #print "PUB", tag, data
-
-    def send_message(self, client, message):
-        data = message.dumps()
-        client.send_data(data)
-        #print "SND", "client %s" % client.get_id(), data
 
     def on_mq_data_received(self, tag, data):
         #print "SUB", tag, data
@@ -119,30 +111,35 @@ class Gateway(server.AbstractServer):
     def on_mq_r_j_accept(self, message):
         client = self.clients.get(message.cid)
         if client:
-            self.send_message(client, message)
+            self.send_client_message(client, message)
         else:
             pass
 
     def on_mq_r_j_reject(self, message):
         client = self.clients.get(message.cid)
         if client:
-            self.send_message(client, message)
+            self.send_client_message(client, message)
         else:
             pass
 
     def on_mq_r_b_msg(self, message):
         client = self.clients.get(message.ciddest)
         if client:
-            self.send_message(client, message)
+            self.send_client_message(client, message)
         else:
             pass
 
     def on_mq_r_bye(self, message):
         client = self.clients.get(message.cid)
         if client:
-            self.send_message(client, message)
+            self.send_client_message(client, message)
         else:
             pass
+
+    def send_client_message(self, client, message):
+        data = message.dumps()
+        client.send_data(data)
+        #print "SND", "client %s" % client.get_id(), data
 
     def on_client_connect(self, client):
         print "new", client.get_id(), "connected"
@@ -161,7 +158,7 @@ class Gateway(server.AbstractServer):
         self.update_zk_node_data()
 
         # send message to all room servers
-        self.publish_message("roomserver-allserver", Message(cmd='rExitAll', cid=client.get_id()))
+        self.pub_mq_message("roomserver-allserver", Message(cmd='rExitAll', cid=client.get_id()))
 
     def on_client_data_received(self, client, data):
         #print "RCV", "client %s" % client.get_id(), data
@@ -173,7 +170,7 @@ class Gateway(server.AbstractServer):
         self.client_handlers[message.cmd](client, message)
 
     def on_client_s_connect(self, client, message):
-        self.send_message(client, Message(cmd='sAccept', cid=client.get_id()))
+        self.send_client_message(client, Message(cmd='sAccept', cid=client.get_id()))
 
     def on_client_r_lookup(self, client, message):
         room_list = []
@@ -188,16 +185,16 @@ class Gateway(server.AbstractServer):
                 else:
                     room_list.append(rid)
 
-        self.send_message(client, Message(cmd='rList', roomlist=room_list, cid=client.get_id()))
+        self.send_client_message(client, Message(cmd='rList', roomlist=room_list, cid=client.get_id()))
 
     def on_client_r_join(self, client, message):
         if message.rid == 0:
             # gateway chooses one
-            roomservers = self.get_zk_roomserver_list()
+            roomservers = self.get_zk_roomservers()
             if roomservers:
                 server_id = random.choice(roomservers)
             else:
-                self.send_message(client,
+                self.send_client_message(client,
                                   Message(cmd='rJReject', cid=message.cid, rid=message.rid, msg='no room servers'))
                 return
         else:
@@ -207,24 +204,24 @@ class Gateway(server.AbstractServer):
             room_data = json.loads(data)
             server_id = room_data['server_id']
 
-        self.publish_message(server_id, message)
+        self.pub_mq_message(server_id, message)
 
     def on_client_r_msg(self, client, message):
         try:
             server_id = self.get_zk_roomserver(message.rid)
-            self.publish_message(server_id, message)
+            self.pub_mq_message(server_id, message)
         except RoomServerNotFoundError as e:
-            self.send_message(client, Message(cmd='rBye', cid=message.cid, rid=message.rid))
+            self.send_client_message(client, Message(cmd='rBye', cid=message.cid, rid=message.rid))
 
     def on_client_r_exit(self, client, message):
         try:
             server_id = self.get_zk_roomserver(message.rid)
-            self.publish_message(server_id, message)
+            self.pub_mq_message(server_id, message)
         except RoomServerNotFoundError as e:
-            self.send_message(client, Message(cmd='rBye', cid=message.cid, rid=message.rid))
+            self.send_client_message(client, Message(cmd='rBye', cid=message.cid, rid=message.rid))
 
     def on_client_s_exit(self, client, message):
-        self.send_message(client, Message(cmd='sBye', cid=client.get_id()))
+        self.send_client_message(client, Message(cmd='sBye', cid=client.get_id()))
 
     def on_client_s_error(self, client, message):
         print "client %s error %s" % (client.get_id(), message.msg)

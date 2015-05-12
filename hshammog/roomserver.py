@@ -167,7 +167,6 @@ class RoomServer(server.AbstractServer):
         else:
             print "room %s for rExit not found" % message.rid
 
-
     def on_mq_r_exit_all(self, server_id, message):
         for rid in self.rooms.keys():
             room = self.rooms.get(rid)

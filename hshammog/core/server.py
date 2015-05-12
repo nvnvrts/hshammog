@@ -71,24 +71,54 @@ class AbstractServer():
 
         self.zk_room_rooms_path = config.ZK_ROOT + zk_path + config.ZK_ROOM_ROOMS_PATH
         self.zk_client.ensure_path(self.zk_room_rooms_path)
-        
+
+        # cached lists
+        self.gateways = []
         self.roomservers = []
+
+    def watch_zk_gateways(self):
+        @self.zk_client.ChildrenWatch(self.zk_gateway_servers_path)
+        def watch_gateways(gateways):
+            # find out gateways changes
+            added = [x for x in gateways if x not in self.gateways]
+            removed = [x for x in self.gateways if x not in gateways]
+
+            # update list before call handlers
+            self.gateways = gateways
+
+            if added:
+                self.on_zk_gateway_added(added)
+
+            if removed:
+                self.on_zk_gateway_removed(removed)
+
+    def get_zk_gateways(self):
+        return self.gateways
+
+    def on_zk_gateway_added(self, gateways):
+        pass
+
+    def on_zk_gateway_removed(self, gateways):
+        pass
 
     def watch_zk_roomservers(self):
         @self.zk_client.ChildrenWatch(self.zk_room_servers_path)
         def watch_roomservers(roomservers):
-            # find out roomservers added
+            # find out roomservers changes
             added = [x for x in roomservers if x not in self.roomservers]
+            removed = [x for x in self.roomservers if x not in roomservers]
+
+            # update list before call handlers
+            self.roomservers = roomservers
+
             if added:
                 self.on_zk_roomserver_added(added)
 
-            # find out roomservers removed
-            removed = [x for x in self.roomservers if x not in roomservers]
             if removed:
                 self.on_zk_roomserver_removed(removed)
 
-            # update list
-            self.roomservers = roomservers
+    def get_zk_roomservers(self):
+        return self.roomservers
 
     def on_zk_roomserver_added(self, roomservers):
         pass

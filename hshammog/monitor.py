@@ -13,42 +13,23 @@ class Monitor(server.AbstractServer):
     def __init__(self, zk_hosts, zk_path):
         server.AbstractServer.__init__(self, "monitor", zk_hosts, zk_path)
 
-        self.gateways = []
-        self.roomservers = []
+        self.watch_zk_gateways()
+        self.watch_zk_roomservers()
 
-        # zookeeper client setup
-        @self.zk_client.ChildrenWatch(self.zk_gateway_servers_path)
-        def watch_gateways(gateways):
-            self.on_zk_gateways(gateways)
-
-        @self.zk_client.ChildrenWatch(self.zk_room_servers_path)
-        def watch_roomservers(roomservers):
-            self.on_zk_roomservers(roomservers)
-
-    def on_zk_gateways(self, gateways):
-        # find out new gateways
-        new_gateways = [x for x in gateways if x not in self.gateways]
-        print "new gateways:", new_gateways
-
-        self.gateways = gateways
-        print "gateways are now:", gateways
+    def on_zk_gateway_added(self, gateways):
+        print "gateways are now:", self.get_zk_gateways()
 
         # add data watcher to new gateways
-        for gateway in new_gateways:
+        for gateway in gateways:
             @self.zk_client.DataWatch(self.zk_gateway_servers_path + gateway)
             def watch_gateway(data, stat):
                 print "%s: %s" % (gateway, json.loads(data))
 
-    def on_zk_roomservers(self, roomservers):
-        # find out new roomservers
-        new_roomservers = [x for x in roomservers if x not in self.roomservers]
-        print "new roomservers:", roomservers
-
-        self.roomservers = roomservers
-        print "roomservers are now:", roomservers
+    def on_zk_roomserver_added(self, roomservers):
+        print "roomservers are now:", self.get_zk_roomservers()
 
         # add data watcher to new roomservers
-        for roomserver in new_roomservers:
+        for roomserver in roomservers:
             @self.zk_client.DataWatch(self.zk_room_servers_path + roomserver)
             def watch_roomserver(data, stat):
                 number_total_rooms = 0
