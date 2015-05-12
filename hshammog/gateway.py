@@ -176,7 +176,7 @@ class Gateway(server.AbstractServer):
         room_list = []
 
         # gather room list from zk node data
-        for room_server in self.get_zk_roomserver_list():
+        for room_server in self.get_zk_roomservers():
             path = self.zk_room_servers_path + room_server
             data, stat = self.zk_client.get(path)
             for rid, values in json.loads(data).iteritems():
