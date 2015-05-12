@@ -2,11 +2,11 @@ import sys
 import getopt
 import logging
 import json
-from kazoo.client import KazooClient
 import core.config as config
 import core.server as server
 
 logger = logging.getLogger(__name__)
+
 
 class Monitor(server.AbstractServer):
     """ Monitor """
@@ -22,7 +22,7 @@ class Monitor(server.AbstractServer):
         logger.info("monitor %s initialized." % self.id)
 
     def on_zk_gateway_added(self, gateways):
-        print "gateways are now:", self.get_zk_gateways()
+        logger.info("gateways are now: %s" % self.get_zk_gateways())
 
         # add data watcher to new gateways
         for gateway in gateways:
@@ -34,7 +34,7 @@ class Monitor(server.AbstractServer):
         logger.info("%s: %s" % (gateway, json.loads(data)))
 
     def on_zk_roomserver_added(self, roomservers):
-        print "roomservers are now:", self.get_zk_roomservers()
+        logger.info("roomservers are now: %s" % self.get_zk_roomservers())
 
         # add data watcher to new roomservers
         for roomserver in roomservers:
@@ -58,10 +58,11 @@ class Monitor(server.AbstractServer):
             else:
                 number_available_rooms += 1
 
-        logger.info("%s: available(%d), empty(%d), full(%d), total(%d)" %
-                    (roomserver,
-                     number_available_rooms, number_empty_rooms, number_full_rooms,
-                     number_total_rooms))
+        logger.info("%s: available(%d), empty(%d), full(%d), total(%d)" % (roomserver,
+                                                                           number_available_rooms,
+                                                                           number_empty_rooms,
+                                                                           number_full_rooms,
+                                                                           number_total_rooms))
 
 
 if __name__ == "__main__":
