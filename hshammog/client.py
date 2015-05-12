@@ -1,6 +1,11 @@
 from time import sleep
+import logging
+import random
 from twisted.internet import protocol, task, reactor
 from core.protocol import *
+
+logger = logging.getLogger(__name__)
+
 
 class TestClient(protocol.Protocol):
     """ Test Client """
@@ -31,12 +36,13 @@ class TestClient(protocol.Protocol):
         peer = self.transport.getPeer()
         print "connected to", peer.host, peer.port
         # send the first message
-        self.send_message(Message(cmd='sConnect'))
+        self.send_message_to_server(Message(cmd='sConnect'))
 
     def dataReceived(self, data):
+        logger.debug("RECV %d byte(s)" % len(data))
+
         # attach data to receive buffer
         self.data_receive_buffer += data
-        #print "RECV %d byte(s)" % len(data)
 
         # extract message from the buffer
         while self.data_receive_buffer:
@@ -48,16 +54,19 @@ class TestClient(protocol.Protocol):
             self.on_message_received(message)
 
     def connectionLost(self, reason):
-        print "connection closed", reason
+        logger.info("connection closed (%s)" % reason)
+
+        # reconnect to server
         reactor.connectTCP("127.0.0.1", 18888, TestClientFactory())
 
-    def send_message(self, message):
+    def send_message_to_server(self, message):
         data = message.dumps()
+        logger.debug("SND %s" % data)
+
         self.transport.write(data + "\n")
-        #print "SND", data
 
     def on_message_received(self, message):
-        #print "handling %s..." % message.cmd
+        logger.debug("handling %s..." % message.cmd)
         self.handlers[message.cmd](message)
 
     def on_s_accept(self, message):
@@ -65,18 +74,19 @@ class TestClient(protocol.Protocol):
         self.cid = message.cid
 
         # send command to get room list
-        self.send_message(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
+        self.send_message_to_server(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
 
     def on_s_list(self, message):
-        print "room list:", message.roomlist
+        logger.info("room list: %s" % message.roomlist)
 
-        room_id = 0
         if message.roomlist:
-            # join in the first room
-            room_id = message.roomlist[0]
+            room_id = random.choice(message.roomlist)
+        else:
+            room_id = 0
 
         # send command to join the room
-        self.send_message(Message(cmd='rJoin', cid=self.cid, rid=room_id))
+        logger.info("request to join room %s..." % room_id)
+        self.send_message_to_server(Message(cmd='rJoin', cid=self.cid, rid=room_id))
 
     def on_r_j_accept(self, message):
         # reset count
@@ -87,20 +97,20 @@ class TestClient(protocol.Protocol):
                 # send command to broadcast a message
                 self.count += 1
                 text = "%s %d" % (self.cid, self.count)
-                self.send_message(Message(cmd='rMsg',
+                self.send_message_to_server(Message(cmd='rMsg',
                                           cid=self.cid, ciddest=-1, rid=message.rid, msg=text))
             else:
                 # send command to exit from the room
-                self.send_message(Message(cmd='rExit', cid=self.cid, rid=message.rid))
+                self.send_message_to_server(Message(cmd='rExit', cid=self.cid, rid=message.rid))
 
         # start task
-        self.task = task.LoopingCall(send_msg).start(1.0 / 20)
+        self.task = task.LoopingCall(send_msg).start(1.0 / 60)
 
     def on_r_j_reject(self, message):
-        print "join rejected reason:", message.msg
+        logger.info("join rejected reason:" % message.msg)
 
         # send command to get room list again
-        self.send_message(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
+        self.send_message_to_server(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
 
     def on_r_b_msg(self, message):
         if message.cid == self.cid:
@@ -110,17 +120,19 @@ class TestClient(protocol.Protocol):
 
     def on_r_bye(self, message):
         # stop task
-        self.task.stop()
+        if self.task:
+            self.task.stop()
+            self.task = None
 
         # send command to exit from the server
-        self.send_message(Message(cmd='sExit', cid=self.cid))
+        self.send_message_to_server(Message(cmd='sExit', cid=self.cid))
 
     def on_s_bye(self, message):
         # close connection
         self.transport.loseConnection()
 
     def on_r_error(self, message):
-        print "server error %s" % message.msg
+        logger.error("server error %s" % message.msg)
 
 
 class TestClientFactory(protocol.ClientFactory):
@@ -131,5 +143,7 @@ class TestClientFactory(protocol.ClientFactory):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
     reactor.connectTCP("127.0.0.1", 18888, TestClientFactory())
     reactor.run()

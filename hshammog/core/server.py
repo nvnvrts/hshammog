@@ -1,10 +1,13 @@
 import uuid
 import zlib
 import ctypes
+import logging
 from twisted.internet import protocol, reactor
 import txzmq
 from kazoo.client import KazooClient
 import config
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractClient(protocol.Protocol):
@@ -127,7 +130,7 @@ class AbstractServer():
         pass
 
     def listen_client(self, port):
-        print "listening tcp %d..." % port
+        logger.info("listening client on tcp %d..." % port)
         reactor.listenTCP(port, AbstractFactory(self))
 
     def on_client_connect(self, client):
@@ -158,7 +161,8 @@ class AbstractServer():
 
             self.mq_sub.gotMessage = on_sub
 
-        print "mq pubsub connected to", mq_pub_addr, mq_sub_addr, args
+        logger.info("mq pubsub connected to pub=%s sub=%s tags=%s",
+                    mq_pub_addr, mq_sub_addr, args)
 
     def publish_mq(self, tag, data):
         if self.mq_pub:
@@ -170,5 +174,5 @@ class AbstractServer():
         pass
 
     def run(self):
-        print self.id, "running..."
+        logger.info("server %s is running...", self.id)
         reactor.run()

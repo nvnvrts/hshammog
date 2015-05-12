@@ -7,7 +7,7 @@ from core.protocol import *
 from core.exceptions import *
 import core.server as server
 
-logging.basicConfig()
+logger = logging.getLogger(__name__)
 
 
 class Gateway(server.AbstractServer):
@@ -19,6 +19,8 @@ class Gateway(server.AbstractServer):
                  zk_hosts, zk_path):
         server.AbstractServer.__init__(self, "gateway", zk_hosts, zk_path)
 
+        logger.info("gateway %s initializing..." % self.id)
+
         # connect to mq as a gateway
         self.connect_mq(mq_host, mq_pub_port, mq_sub_port, self.id)
 
@@ -27,7 +29,6 @@ class Gateway(server.AbstractServer):
                                      value=b"{}",
                                      ephemeral=True,
                                      sequence=False)
-        print "gateway zk node %s created." % node
 
         self.watch_zk_roomservers()
 
@@ -57,6 +58,8 @@ class Gateway(server.AbstractServer):
         # cache for mapping room id to room server id
         self.server_id_cache = {}
 
+        logger.info("gateway %s initialized." % self.id)
+
     def update_zk_node_data(self):
         path = self.zk_gateway_servers_path + self.id
         data = {
@@ -83,10 +86,11 @@ class Gateway(server.AbstractServer):
         return server_id
 
     def on_zk_roomserver_added(self, roomservers):
-        print "roomservers added", roomservers
+        logger.info("roomservers added... %s" % roomservers)
 
     def on_zk_roomserver_removed(self, roomservers):
-        print "roomservers removed", roomservers
+        logger.info("roomservers removed... %s" % roomservers)
+
         for roomserver in roomservers:
             for rid in self.server_id_cache.keys():
                 server_id = self.server_id_cache.get(rid)
@@ -95,11 +99,12 @@ class Gateway(server.AbstractServer):
 
     def pub_mq_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
+
+        logger.debug("PUB %s %s" % (tag, data))
         self.publish_mq(str(tag), data)
-        #print "PUB", tag, data
 
     def on_mq_data_received(self, tag, data):
-        #print "SUB", tag, data
+        logger.debug("SUB %s %s" % (tag, data))
 
         # parse message from mq
         server_id, payload = data.split("|", 1)
@@ -139,10 +144,11 @@ class Gateway(server.AbstractServer):
     def send_client_message(self, client, message):
         data = message.dumps()
         client.send_data(data)
-        #print "SND", "client %s" % client.get_id(), data
+
+        logger.debug("SND client %s %s" % (client.get_id(), data))
 
     def on_client_connect(self, client):
-        print "new", client.get_id(), "connected"
+        logger.info("new %s connected" % client.get_id())
 
         # add client to hash
         self.clients[client.get_id()] = client
@@ -150,7 +156,7 @@ class Gateway(server.AbstractServer):
         self.update_zk_node_data()
 
     def on_client_close(self, client, reason):
-        print client.get_id(), "disconnected"
+        logger.info("%s disconnected" % client.get_id())
 
         # remove client from hash
         del self.clients[client.get_id()]
@@ -161,7 +167,7 @@ class Gateway(server.AbstractServer):
         self.pub_mq_message("roomserver-allserver", Message(cmd='rExitAll', cid=client.get_id()))
 
     def on_client_data_received(self, client, data):
-        #print "RCV", "client %s" % client.get_id(), data
+        logger.debug("RCV client %s %s" % (client.get_id(), data))
 
         # get message from data,
         message = MessageHelper.load_message(data)
@@ -185,7 +191,8 @@ class Gateway(server.AbstractServer):
                 else:
                     room_list.append(rid)
 
-        self.send_client_message(client, Message(cmd='rList', roomlist=room_list, cid=client.get_id()))
+        self.send_client_message(client,
+                                 Message(cmd='rList', roomlist=room_list, cid=client.get_id()))
 
     def on_client_r_join(self, client, message):
         if message.rid == 0:
@@ -224,10 +231,12 @@ class Gateway(server.AbstractServer):
         self.send_client_message(client, Message(cmd='sBye', cid=client.get_id()))
 
     def on_client_s_error(self, client, message):
-        print "client %s error %s" % (client.get_id(), message.msg)
+        logger.error("client %s error %s" % (client.get_id(), message.msg))
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
     zk_path = 'test'
 
     try:

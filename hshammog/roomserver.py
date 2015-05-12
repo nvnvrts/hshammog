@@ -5,6 +5,8 @@ import core.server as server
 import core.room as core_room
 from core.protocol import *
 
+logger = logging.getLogger(__name__)
+
 
 class RoomServer(server.AbstractServer):
     """ Room Server """
@@ -14,6 +16,8 @@ class RoomServer(server.AbstractServer):
                  zk_hosts, zk_path):
         server.AbstractServer.__init__(self, "roomserver", zk_hosts, zk_path)
 
+        logger.info("room server %s initializing..." % self.id)
+
         self.rooms = {}
 
         # connect to mq as a echo server
@@ -22,7 +26,6 @@ class RoomServer(server.AbstractServer):
         # zookeeper client setup
         node = self.zk_client.create(path=self.zk_room_servers_path + self.id,
                                      value=b"{}", ephemeral=True, sequence=False)
-        print "roomserver zk node %s created." % node
 
         # mq message handler
         self.mq_handlers = {
@@ -31,6 +34,8 @@ class RoomServer(server.AbstractServer):
             'rExit': self.on_mq_r_exit,
             'rExitAll': self.on_mq_r_exit_all,
         }
+
+        logger.info("room server %s initialized." % self.id)
 
     def create_room(self):
         room = core_room.Room(2)
@@ -79,16 +84,17 @@ class RoomServer(server.AbstractServer):
             data[rid] = {'count': room.count(), 'max': room.max_members}
 
         # set node data with room id list
-        #print json.dumps(data)
+        logger.debug("updating node %s data %s" % (path, json.dumps(data)))
         self.zk_client.set(path, json.dumps(data))
 
     def publish_message(self, tag, message):
         data = "%s|%s" % (self.id, message.dumps())
+        logger.debug("PUB %s %s" % (tag, data))
+
         self.publish_mq(tag, data)
-        #print "PUB", tag, data
 
     def on_mq_data_received(self, tag, data):
-        #print "SUB", tag, data
+        logger.debug("SUB %s %s" % (tag, data))
 
         # parse message from mq
         server_id, payload = data.split("|", 1)
@@ -127,7 +133,7 @@ class RoomServer(server.AbstractServer):
                     room_id = room.get_id()
             else:
                 reason = 'room not found'
-                print "room %s not found" % message.rid
+                logger.info("room %s not found" % message.rid)
 
         if room_id:
             self.update_zk_node_data()
@@ -150,7 +156,7 @@ class RoomServer(server.AbstractServer):
                                              msg=message.msg))
             room.foreach(func)
         else:
-            print "room %s for rMsg not found" % message.rid
+            logger.debug("room %s for rMsg not found" % message.rid)
 
     def on_mq_r_exit(self, server_id, message):
         room = self.rooms.get(message.rid)
@@ -165,7 +171,7 @@ class RoomServer(server.AbstractServer):
             self.publish_message(server_id,
                                  Message(cmd='rBye', cid=message.cid, rid=message.rid))
         else:
-            print "room %s for rExit not found" % message.rid
+            logger.debug("room %s for rExit not found" % message.rid)
 
     def on_mq_r_exit_all(self, server_id, message):
         for rid in self.rooms.keys():
@@ -179,6 +185,8 @@ class RoomServer(server.AbstractServer):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_path="])
     except getopt.GetoptError:

@@ -6,6 +6,7 @@ from kazoo.client import KazooClient
 import core.config as config
 import core.server as server
 
+logger = logging.getLogger(__name__)
 
 class Monitor(server.AbstractServer):
     """ Monitor """
@@ -13,8 +14,12 @@ class Monitor(server.AbstractServer):
     def __init__(self, zk_hosts, zk_path):
         server.AbstractServer.__init__(self, "monitor", zk_hosts, zk_path)
 
+        logger.info("monitor %s initializing..." % self.id)
+
         self.watch_zk_gateways()
         self.watch_zk_roomservers()
+
+        logger.info("monitor %s initialized." % self.id)
 
     def on_zk_gateway_added(self, gateways):
         print "gateways are now:", self.get_zk_gateways()
@@ -23,7 +28,10 @@ class Monitor(server.AbstractServer):
         for gateway in gateways:
             @self.zk_client.DataWatch(self.zk_gateway_servers_path + gateway)
             def watch_gateway(data, stat):
-                print "%s: %s" % (gateway, json.loads(data))
+                self.on_zk_gateway_data_changed(gateway, data)
+
+    def on_zk_gateway_data_changed(self, gateway, data):
+        logger.info("%s: %s" % (gateway, json.loads(data)))
 
     def on_zk_roomserver_added(self, roomservers):
         print "roomservers are now:", self.get_zk_roomservers()
@@ -32,29 +40,33 @@ class Monitor(server.AbstractServer):
         for roomserver in roomservers:
             @self.zk_client.DataWatch(self.zk_room_servers_path + roomserver)
             def watch_roomserver(data, stat):
-                number_total_rooms = 0
-                number_empty_rooms = 0
-                number_full_rooms = 0
-                number_available_rooms = 0
+                self.on_zk_roomserver_data_changed(roomserver, data)
 
-                for rid, values in json.loads(data).iteritems():
-                    number_total_rooms += 1
-                    if values['count'] == 0:
-                        number_empty_rooms += 1
-                        number_available_rooms += 1
-                    elif values['count'] == values['max']:
-                        number_full_rooms += 1
-                    else:
-                        number_available_rooms += 1
+    def on_zk_roomserver_data_changed(self, roomserver, data):
+        number_total_rooms = 0
+        number_empty_rooms = 0
+        number_full_rooms = 0
+        number_available_rooms = 0
 
-                print "%s: available(%d), empty(%d), full(%d), total(%d)" % (roomserver,
-                                                                             number_available_rooms,
-                                                                             number_empty_rooms,
-                                                                             number_full_rooms,
-                                                                             number_total_rooms)
+        for rid, values in json.loads(data).iteritems():
+            number_total_rooms += 1
+            if values['count'] == 0:
+                number_empty_rooms += 1
+                number_available_rooms += 1
+            elif values['count'] == values['max']:
+                number_full_rooms += 1
+            else:
+                number_available_rooms += 1
+
+        logger.info("%s: available(%d), empty(%d), full(%d), total(%d)" %
+                    (roomserver,
+                     number_available_rooms, number_empty_rooms, number_full_rooms,
+                     number_total_rooms))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h:z:", ["--zk_path="])
     except getopt.GetoptError:
