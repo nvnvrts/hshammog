@@ -3,6 +3,7 @@ import zlib
 import ctypes
 import logging
 from twisted.internet import protocol, reactor
+from txws import WebSocketFactory
 import txzmq
 from kazoo.client import KazooClient
 from client.tcp.factory import TcpFactory
@@ -87,9 +88,13 @@ class AbstractServer():
     def on_zk_roomserver_removed(self, roomservers):
         pass
 
-    def listen_client(self, port):
-        logger.info("listening client on tcp %d..." % port)
+    def listen_tcp_client(self, port):
+        logger.info("listening client on tcp(%d)..." % port)
         reactor.listenTCP(port, TcpFactory(self))
+
+    def listen_websocket_client(self, port):
+        logger.info("listening client on websocket(%d)..." % port)
+        reactor.listenTCP(port, WebSocketFactory(TcpFactory(self)))
 
     def on_client_connect(self, client):
         pass

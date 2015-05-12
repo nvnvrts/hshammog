@@ -14,7 +14,7 @@ class Gateway(server.AbstractServer):
     """ Gateway """
 
     def __init__(self,
-                 client_listen_port,
+                 client_tcp_port, client_websocket_port,
                  mq_host, mq_pub_port, mq_sub_port,
                  zk_hosts, zk_path):
         server.AbstractServer.__init__(self, "gateway", zk_hosts, zk_path)
@@ -53,7 +53,8 @@ class Gateway(server.AbstractServer):
 
         # start accepting client
         self.clients = {}
-        self.listen_client(client_listen_port)
+        self.listen_tcp_client(client_tcp_port)
+        self.listen_websocket_client(client_websocket_port)
 
         # cache for mapping room id to room server id
         self.server_id_cache = {}
@@ -260,5 +261,5 @@ if __name__ == '__main__':
             zk_path = arg
 
     # start a gateway
-    server = Gateway(18888, '127.0.0.1', 5561, 5562, "192.168.0.16:2181", zk_path)
+    server = Gateway(18888, 8080, '127.0.0.1', 5561, 5562, "192.168.0.16:2181", zk_path)
     server.run()
