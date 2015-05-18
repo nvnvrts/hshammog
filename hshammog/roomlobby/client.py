@@ -6,8 +6,6 @@ from twisted.internet import protocol, task, reactor
 
 from core.protocol import *
 
-logger = logging.getLogger(__name__)
-
 
 class TestClient(protocol.Protocol):
     """ Test Client """
@@ -76,7 +74,8 @@ class TestClient(protocol.Protocol):
         self.cid = message.cid
 
         # send command to get room list
-        self.send_message_to_server(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
+        self.send_message_to_server(Message(cmd='rLookup', cid=self.cid,
+                                            nmaxroom=4))
 
     def on_s_list(self, message):
         logger.info("room list: %s" % message.roomlist)
@@ -88,7 +87,8 @@ class TestClient(protocol.Protocol):
 
         # send command to join the room
         logger.info("request to join room %s..." % room_id)
-        self.send_message_to_server(Message(cmd='rJoin', cid=self.cid, rid=room_id))
+        self.send_message_to_server(Message(cmd='rJoin', cid=self.cid,
+                                            rid=room_id))
 
     def on_r_j_accept(self, message):
         # reset count
@@ -100,11 +100,12 @@ class TestClient(protocol.Protocol):
                 self.count += 1
                 text = "%s %d" % (self.cid, self.count)
                 self.send_message_to_server(Message(cmd='rMsg',
-                                                    cid=self.cid, ciddest=-1, rid=message.rid,
-                                                    msg=text))
+                                                    cid=self.cid, ciddest=-1,
+                                                    rid=message.rid, msg=text))
             else:
                 # send command to exit from the room
-                self.send_message_to_server(Message(cmd='rExit', cid=self.cid, rid=message.rid))
+                self.send_message_to_server(Message(cmd='rExit', cid=self.cid,
+                                                    rid=message.rid))
 
         # start task
         self.task = task.LoopingCall(send_msg).start(1.0 / 60)
@@ -113,7 +114,8 @@ class TestClient(protocol.Protocol):
         logger.info("join rejected reason: %s" % message.msg)
 
         # send command to get room list again
-        self.send_message_to_server(Message(cmd='rLookup', cid=self.cid, nmaxroom=4))
+        self.send_message_to_server(Message(cmd='rLookup', cid=self.cid,
+                                            nmaxroom=4))
 
     def on_r_b_msg(self, message):
         if message.cid == self.cid:
