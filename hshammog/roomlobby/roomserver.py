@@ -177,7 +177,7 @@ class RoomServer(AbstractServer):
         if room:
             room.leave(message.cid)
 
-            if room.is_empty():
+            if room.is_empty() and len(self.rooms) > cfg.initial_room_count:
                 self.delete_room(room)
             else:
                 self.update_room(room)

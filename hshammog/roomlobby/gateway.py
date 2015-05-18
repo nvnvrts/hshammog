@@ -180,7 +180,7 @@ class Gateway(AbstractServer):
                                 client.last_responsed+1))
                 client.last_responsed += 1
                 client.send_data(client.data_buffer[client.last_responsed])
-                del client.data[client.last_responsed]
+                del client.data_buffer[client.last_responsed]
 
         # ignore message
         else:
