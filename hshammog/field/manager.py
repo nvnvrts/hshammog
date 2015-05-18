@@ -11,4 +11,5 @@ def run(server_mode):
     elif server_mode == 'server':
         pass
     elif server_mode == 'monitor':
-        pass
+        from field.monitor import Monitor
+        Monitor(cfg.ws_port, cfg.zk_servers[0], cfg.zk_path).run()
