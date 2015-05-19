@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>HSHAMMOG WebSocket Test</title>
     <script language="javascript" type="text/javascript">
-        var uri = "ws://222.122.192.69:8080/";
+        var uri = "ws://222.122.192.57:8080/";
         var output;
         function init() {
             output = document.getElementById("output")
@@ -19,12 +19,14 @@
         }
 
         function onOpen(event) {
+            writeToScreen("CONNECTED");
         }
         function onClose(event) {
         }
         function onMessage(event) {
-            //writeToScreen(event.data)
-            update_gateway_table(event.data);
+            writeToScreen(event.data);
+            var message = JSON.parse(event.data);
+            handlers[message.cmd](message);
         }
         function onError(event) {
         }
@@ -35,84 +37,29 @@
             output.appendChild(pre)
         }
 
-        function gwAddRow(id, cpu, mem, client_num){
-            var tableElem = document.getElementById("gateway_table");
-            var row_index = tableElem.rows.length;
-            newTr = tableElem.insertRow(row_index);
-            newTr.align = "center";
-            newTr.bgColor = "rgb(0,"
-                    + Math.floor(Math.random()*100).toString()
-                    + ",0)";
-
-            newTd=newTr.insertCell(0);
-            newTd.innerHTML = id;
-            newTd=newTr.insertCell(1);
-            newTd.innerHTML = cpu;
-            newTd=newTr.insertCell(2);
-            newTd.innerHTML = mem;
-            newTd=newTr.insertCell(3);
-            newTd.innerHTML = client_num;
-        }
-
-        function csAddRow(id, cpu, mem, zone_num){
-            var tableElem = document.getElementById("cell_table");
-            var row_index = tableElem.rows.length;
-            newTr = tableElem.insertRow(row_index);
-            newTr.align = "center";
-            newTr.bgColor = "rgb(" + Math.floor(Math.random()*100).toString() + ",0,0)";
-
-            newTd=newTr.insertCell(0);
-            newTd.innerHTML = id;
-            newTd=newTr.insertCell(1);
-            newTd.innerHTML = cpu;
-            newTd=newTr.insertCell(2);
-            newTd.innerHTML = mem;
-            newTd=newTr.insertCell(3);
-            newTd.innerHTML = zone_num;
-        }
-
-        function table_init(table_id){
-            var tableElem = document.getElementById(table_id);
-            var row_index = tableElem.rows.length;
-            for(n=1;n<row_index;n++){
-                tableElem.deleteRow(n);
+        function draw_zone(x,y,w,h,color){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+                ctx.fillStyle = color;
+                ctx.fillRect(x,y,w,h);
             }
         }
+        function draw_point(
+        function change_draw(){
+            draw_zone(0,0,500,500,"rgb(0,0,0)");
+            draw_zone(0,500,500,500,"rgb(0,0,250)");
+            draw_zone(500,0,500,500,"rgb(0,250,0)");
+            draw_zone(500,500,500,500,"rgb(250,0,0)");
 
-        function update_gateway_table(data){
-            table_init("gateway_table");
-
-            list_gateway = JSON.parse(data).gateway.list_gateway;
-
-            for(n=0; n<list_gateway.length; n++){
-                gwAddRow(list_gateway[n].gateway_id, list_gateway[n].cpu_usage, list_gateway[n].mem_usage, list_gateway[n].num_client);
-            }
         }
+
         window.addEventListener("load", init, false);
     </script>
 </head>
-<body>
-    <h2>GATEWAY SERVER STATUS</h2>
-    <table id="gateway_table" cellpadding="2" cellspacing="0" border="1" width="500">
-        <tr bgcolor="red">
-            <th>SERVER ID</th>
-            <th>CPU 사용률(%)</th>
-            <th>메모리 사용률(%)</th>
-            <th>CLIENT 개수</th>
-        </tr>
-    </table>
-
-    <h2>CELL SERVER STATUS</h2>
-    <table id="cell_table" cellpadding="2" cellspacing="0" border="1" width="500">
-        <tr bgcolor="red">
-            <th>SERVER ID</th>
-            <th>CPU 사용률(%)</th>
-            <th>메모리 사용률(%)</th>
-            <th>ZONE 개수</th>
-        </tr>
-    </table>
-
-    <div id = "output"></div>
-
+<body onload="change_draw();">
+    <h2>HSHAMMOG WebSocket Test</h2>
+    <div id="output"></div>
+    <canvas id="canvas" width="1000" height="1000"></canvas>
 </body>
 </html>
