@@ -25,6 +25,7 @@
         }
         function onMessage(event) {
             //writeToScreen(event.data);
+            canvas_clear();
             parse_data(event.data);
         }
         function onError(event) {
@@ -34,6 +35,14 @@
             pre.style.wordWrap = "break-word";
             pre.innerHTML = message
             output.appendChild(pre)
+        }
+
+        function canvas_clear(){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+                ctx.clearRect(0,0,1024,1024);
+            }
         }
 
         function draw_zone(x,y,w,h,color){
