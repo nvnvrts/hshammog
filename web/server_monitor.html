@@ -1,10 +1,124 @@
 <!DOCTYPE html>
 <html>
 <head lang="en">
-    <meta charset="UTF-8">
-    <title></title>
+    <meta charset="utf-8">
+    <title>HSHAMMOG WebSocket Test</title>
+    <script language="javascript" type="text/javascript">
+        var uri = "ws://222.122.192.69:8080/";
+        var output;
+        function init() {
+            output = document.getElementById("output")
+            connect()
+        }
+        function connect() {
+            websocket = new WebSocket(uri);
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = onMessage;
+            websocket.onerror = onError;
+        }
+
+        function onOpen(event) {
+        }
+        function onClose(event) {
+        }
+        function onMessage(event) {
+            //writeToScreen(event.data)
+            update_gateway_table(event.data);
+            update_cell_table(event.data);
+        }
+        function onError(event) {
+        }
+        function writeToScreen(message) {
+            var pre = document.createElement("p");
+            pre.style.wordWrap = "break-word";
+            pre.innerHTML = message
+            output.appendChild(pre)
+        }
+
+        function gwAddRow(id, cpu, mem, client_num){
+            var tableElem = document.getElementById("gateway_table");
+            var row_index = tableElem.rows.length;
+            newTr = tableElem.insertRow(row_index);
+            newTr.align = "center";
+
+            newTd=newTr.insertCell(0);
+            newTd.innerHTML = id;
+            newTd=newTr.insertCell(1);
+            newTd.innerHTML = cpu;
+            newTd=newTr.insertCell(2);
+            newTd.innerHTML = mem;
+            newTd=newTr.insertCell(3);
+            newTd.innerHTML = client_num;
+        }
+
+        function csAddRow(id, cpu, mem, zone_num){
+            var tableElem = document.getElementById("cell_table");
+            var row_index = tableElem.rows.length;
+            newTr = tableElem.insertRow(row_index);
+            newTr.align = "center";
+
+            newTd=newTr.insertCell(0);
+            newTd.innerHTML = id;
+            newTd=newTr.insertCell(1);
+            newTd.innerHTML = cpu;
+            newTd=newTr.insertCell(2);
+            newTd.innerHTML = mem;
+            newTd=newTr.insertCell(3);
+            newTd.innerHTML = zone_num;
+        }
+
+        function table_init(table_id){
+            var tableElem = document.getElementById(table_id);
+            var row_index = tableElem.rows.length;
+            for(n=1;n<row_index;n++){
+                tableElem.deleteRow(n);
+            }
+        }
+
+        function update_gateway_table(data){
+            table_init("gateway_table");
+
+            list_gateway = JSON.parse(data).gateway.list_gateway;
+
+            for(n=0; n<list_gateway.length; n++){
+                gwAddRow(list_gateway[n].gateway_id, list_gateway[n].cpu_usage, list_gateway[n].mem_usage, list_gateway[n].num_client);
+            }
+        }
+        function update_cell_table(data){
+            table_init("cell_table");
+
+            list_cellserver = JSON.parse(data).cellserver.list_cellserver;
+
+            for(n=0; n<list_cellserver.length; n++){
+                csAddRow(list_cellserver[n].cellserver_id, list_cellserver[n].cpu_usage, list_cellserver[n].mem_usage, list_cellserver[n].num_zone);
+            }
+        }
+        window.addEventListener("load", init, false);
+    </script>
 </head>
 <body>
+    <h2>GATEWAY SERVER STATUS</h2>
+    <table id="gateway_table" cellpadding="2" cellspacing="0" border="1" width="500">
+        <tr bgcolor="red">
+            <th>SERVER ID</th>
+            <th>CPU 사용률(%)</th>
+            <th>메모리 사용률(%)</th>
+            <th>CLIENT 개수</th>
+        </tr>
+    </table>
+
+    <h2>CELL SERVER STATUS</h2>
+    <table id="cell_table" cellpadding="2" cellspacing="0" border="1" width="500">
+        <tr bgcolor="red">
+            <th>SERVER ID</th>
+            <th>CPU 사용률(%)</th>
+            <th>메모리 사용률(%)</th>
+            <th>ZONE 개수</th>
+        </tr>
+    </table>
+
+    <div id = "output"></div>
 
 </body>
 </html>

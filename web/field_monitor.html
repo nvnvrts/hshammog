@@ -1,10 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head lang="en">
-    <meta charset="UTF-8">
-    <title></title>
-</head>
-<body>
+    <meta charset="utf-8">
+    <title>HSHAMMOG WebSocket Test</title>
+    <script language="javascript" type="text/javascript">
+        var uri = "ws://222.122.192.57:8080/";
+        var output;
+        function init() {
+            output = document.getElementById("output")
+            connect()
+        }
+        function connect() {
+            websocket = new WebSocket(uri);
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = onMessage;
+            websocket.onerror = onError;
+        }
 
+        function onOpen(event) {
+            writeToScreen("CONNECTED");
+        }
+        function onClose(event) {
+        }
+        function onMessage(event) {
+            writeToScreen(event.data);
+            var message = JSON.parse(event.data);
+            handlers[message.cmd](message);
+        }
+        function onError(event) {
+        }
+        function writeToScreen(message) {
+            var pre = document.createElement("p");
+            pre.style.wordWrap = "break-word";
+            pre.innerHTML = message
+            output.appendChild(pre)
+        }
+
+        function draw_zone(x,y,w,h,color){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+                ctx.fillStyle = color;
+                ctx.fillRect(x,y,w,h);
+            }
+        }
+        function draw_point(
+        function change_draw(){
+            draw_zone(0,0,500,500,"rgb(0,0,0)");
+            draw_zone(0,500,500,500,"rgb(0,0,250)");
+            draw_zone(500,0,500,500,"rgb(0,250,0)");
+            draw_zone(500,500,500,500,"rgb(250,0,0)");
+
+        }
+
+        window.addEventListener("load", init, false);
+    </script>
+</head>
+<body onload="change_draw();">
+    <h2>HSHAMMOG WebSocket Test</h2>
+    <div id="output"></div>
+    <canvas id="canvas" width="1000" height="1000"></canvas>
 </body>
 </html>
