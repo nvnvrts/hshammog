@@ -57,17 +57,17 @@ class Monitor(AbstractServer):
 
     def random_split_zone(self, zone):
         def horizontal_split(zone):
-            rb_y1 = (zone['rb-y'] + zone['lt-y'])/2
+            rb_y1 = (zone['rb_y'] + zone['lt_y'])/2
             lt_y2 = rb_y1 + 1
 
             zone1 = {
                 'zone_id': self.new_zone_id(),
                 'width': zone['width'],
-                'height': rb_y1 - zone['lt-y'] + 1,
-                'lt-x': zone['lt-x'],
-                'lt-y': zone['lt-y'],
-                'rb-x': zone['rb-x'],
-                'rb-y': rb_y1,
+                'height': rb_y1 - zone['lt_y'] + 1,
+                'lt_x': zone['lt_x'],
+                'lt_y': zone['lt_y'],
+                'rb_x': zone['rb_x'],
+                'rb_y': rb_y1,
                 'clients': {
                     'num_client': 0,
                     'list_client': []
@@ -77,11 +77,11 @@ class Monitor(AbstractServer):
             zone2 = {
                 'zone_id': self.new_zone_id(),
                 'width': zone['width'],
-                'height': zone['rb-y'] - lt_y2 + 1,
-                'lt-x': zone['lt-x'],
-                'lt-y': lt_y2,
-                'rb-x': zone['rb-x'],
-                'rb-y': zone['rb-y'],
+                'height': zone['rb_y'] - lt_y2 + 1,
+                'lt_x': zone['lt_x'],
+                'lt_y': lt_y2,
+                'rb_x': zone['rb_x'],
+                'rb_y': zone['rb_y'],
                 'clients': {
                     'num_client': 0,
                     'list_client': []
@@ -89,10 +89,10 @@ class Monitor(AbstractServer):
             }
 
             for client in zone['clients']['list_client']:
-                if client['client_x'] >= zone1['lt-x'] and \
-                   client['client_x'] <= zone1['rb-x'] and \
-                   client['client_y'] >= zone1['lt-y'] and \
-                   client['client_y'] <= zone1['rb-y']:
+                if client['client_x'] >= zone1['lt_x'] and \
+                   client['client_x'] <= zone1['rb_x'] and \
+                   client['client_y'] >= zone1['lt_y'] and \
+                   client['client_y'] <= zone1['rb_y']:
                     zone1['clients']['list_client'].append(client)
                     zone1['clients']['num_client'] += 1
                 else:
@@ -102,17 +102,17 @@ class Monitor(AbstractServer):
             return [zone1, zone2]
 
         def vertical_split(zone):
-            rb_x1 = (zone['rb-x'] + zone['lt-x'])/2
+            rb_x1 = (zone['rb_x'] + zone['lt_x'])/2
             lt_x2 = rb_x1 + 1
 
             zone1 = {
                 'zone_id': self.new_zone_id(),
-                'width': rb_x1 - zone['lt-x'] + 1,
+                'width': rb_x1 - zone['lt_x'] + 1,
                 'height': zone['height'],
-                'lt-x': zone['lt-x'],
-                'lt-y': zone['lt-y'],
-                'rb-x': rb_x1,
-                'rb-y': zone['rb-y'],
+                'lt_x': zone['lt_x'],
+                'lt_y': zone['lt_y'],
+                'rb_x': rb_x1,
+                'rb_y': zone['rb_y'],
                 'clients': {
                     'num_client': 0,
                     'list_client': []
@@ -121,12 +121,12 @@ class Monitor(AbstractServer):
 
             zone2 = {
                 'zone_id': self.new_zone_id(),
-                'width': zone['rb-x'] - lt_x2 + 1,
+                'width': zone['rb_x'] - lt_x2 + 1,
                 'height': zone['height'],
-                'lt-x': lt_x2,
-                'lt-y': zone['lt-y'],
-                'rb-x': zone['rb-x'],
-                'rb-y': zone['rb-y'],
+                'lt_x': lt_x2,
+                'lt_y': zone['lt_y'],
+                'rb_x': zone['rb_x'],
+                'rb_y': zone['rb_y'],
                 'clients': {
                     'num_client': 0,
                     'list_client': []
@@ -134,10 +134,10 @@ class Monitor(AbstractServer):
             }
 
             for client in zone['clients']['list_client']:
-                if client['client_x'] >= zone1['lt-x'] and \
-                   client['client_x'] <= zone1['rb-x'] and \
-                   client['client_y'] >= zone1['lt-y'] and \
-                   client['client_y'] <= zone1['rb-y']:
+                if client['client_x'] >= zone1['lt_x'] and \
+                   client['client_x'] <= zone1['rb_x'] and \
+                   client['client_y'] >= zone1['lt_y'] and \
+                   client['client_y'] <= zone1['rb_y']:
                     zone1['clients']['list_client'].append(client)
                     zone1['clients']['num_client'] += 1
                 else:
@@ -170,10 +170,10 @@ class Monitor(AbstractServer):
             'zone_id': self.new_zone_id(),
             'width': initial_size,
             'height': initial_size,
-            'lt-x': 0,
-            'lt-y': 0,
-            'rb-x': initial_size - 1,
-            'rb-y': initial_size - 1,
+            'lt_x': 0,
+            'lt_y': 0,
+            'rb_x': initial_size - 1,
+            'rb_y': initial_size - 1,
             'clients': {
                 'num_client': num_client,
                 'list_client': clients
