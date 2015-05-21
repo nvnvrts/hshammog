@@ -19,16 +19,56 @@
     <!-- Latest compiled JavaScript -->
     <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
 
+    <!-- Mustache HTML rendering Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.8.1/mustache.min.js"></script>
+
+    <script id="panel_template" type="text/html">
+        <div class="panel-heading">
+            <h3 class="panel-title"> {{heading}} </h3>
+        </div> <!-- panel heading -->
+        <div class="panel-body">
+            <div class="row">
+                <div class="col-md-2"> CPU </div>
+                <div class="col-md-10">
+                    <div class="progress">
+                    <div class="progress-bar progress-bar-danger"
+                         role="progressbar" aria-valuenow="{{cpu}}"
+                         aria-valuemin="0" aria-valuemax="100"
+                         style="width:{{cpu}}%"> {{cpu}}% </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-2"> MEM </div>
+                <div class="col-md-10">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-info"
+                             role-"progressbar" aria-valuenow="{{mem}}"
+                             aria-valuemin="0" aria-valuemax="100"
+                             style="width:{{mem}}%"> {{mem}}% </div>
+                    </div>
+                </div>
+            </div>
+            {{desc}}
+        </div> <!-- panel body -->
+    </script>
+
     <script language="javascript" type="text/javascript">
         var url = "ws://222.122.192.69:8080/";
-        var alert;
+
+        var alert_box;
         var server_panel;
+        var panel_template;
+        var canvas_state;
 
         function init() {
-            alert = document.getElementById("alert");
+            alert_box = document.getElementById("alert");
             server_panel = document.getElementById("server_panel");
+            panel_template = document.getElementById("panel_template").innerHTML;
+            canvas_state = new CanvasState(document.getElementById("canvas"));
             writeAlert("info", "Initializing WebSocket Connection");
-            connect()
+
+            connect();
         }
 
         function connect() {
@@ -50,7 +90,7 @@
         }
 
         function onMessage(event) {
-            canvas_clear();
+            canvas_state.clear();
 
             parse_data(event.data);
 
@@ -62,74 +102,8 @@
         }
 
         function writeAlert(level, message) {
-            alert.className = "alert alert-" + level;
-            alert.innerHTML = message;
-        }
-
-        function canvas_clear(){
-            var canvas = document.getElementById('canvas');
-            if (canvas.getContext) {
-                var ctx = canvas.getContext('2d');
-                ctx.clearRect(0,0,1024,1024);
-            }
-        }
-
-        function draw_zone(x, y, w, h, id){
-            var canvas = document.getElementById('canvas');
-            if (canvas.getContext) {
-                var ctx = canvas.getContext('2d');
-
-                r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
-                g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
-                b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
-
-                ctx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
-                ctx.fillRect(x,y,w,h);
-                ctx.font = "8pt Arial";
-                ctx.textAlign = "center";
-                ctx.strokeText(id, x+w/2, y+h/2);
-            }
-        }
-
-        function draw_point(x,y){
-            var canvas = document.getElementById('canvas');
-            if (canvas.getContext) {
-                var ctx = canvas.getContext('2d');
-                ctx.fillStyle = "rgb(255, 0, 0)";
-                ctx.fillRect(x - 2, y - 2, 4, 4);
-            }
-        }
-
-        function gwAddRow(id, cpu, mem, client_num){
-            var tableElem = document.getElementById("gateway_table");
-            var row_index = tableElem.rows.length;
-            newTr = tableElem.insertRow(row_index);
-            newTr.align = "center";
-
-            newTd=newTr.insertCell(0);
-            newTd.innerHTML = id;
-            newTd=newTr.insertCell(1);
-            newTd.innerHTML = cpu;
-            newTd=newTr.insertCell(2);
-            newTd.innerHTML = mem;
-            newTd=newTr.insertCell(3);
-            newTd.innerHTML = client_num;
-        }
-
-        function csAddRow(id, cpu, mem, zone_num){
-            var tableElem = document.getElementById("cell_table");
-            var row_index = tableElem.rows.length;
-            newTr = tableElem.insertRow(row_index);
-            newTr.align = "center";
-
-            newTd=newTr.insertCell(0);
-            newTd.innerHTML = id;
-            newTd=newTr.insertCell(1);
-            newTd.innerHTML = cpu;
-            newTd=newTr.insertCell(2);
-            newTd.innerHTML = mem;
-            newTd=newTr.insertCell(3);
-            newTd.innerHTML = zone_num;
+            alert_box.className = "alert alert-" + level;
+            alert_box.innerHTML = message;
         }
 
         function panel_init() {
@@ -138,70 +112,200 @@
             }
         }
 
-        function table_init(table_id){
-            var tableElem = document.getElementById(table_id);
-            var row_index = tableElem.rows.length;
-            for(n=1;n<row_index;n++){
-                tableElem.deleteRow(n);
+        function create_server_panel(style, server) {
+            var output = Mustache.render(panel_template, server);
+            var new_panel = document.createElement("div");
+
+            if (server.cpu > 80 || server.mem > 80) {
+                style = "danger";
             }
+
+            new_panel.className = "panel panel-" + style;
+            new_panel.innerHTML = output;
+            server_panel.appendChild(new_panel);
         }
 
-        function update_gateway_table(data){
+        function update_gateway_panel(data){
             list_gateway = JSON.parse(data).gateway.list_gateway;
 
-            for(n=0; n<list_gateway.length; n++){
-                var gw = document.createElement("div");
-                gw.className="panel panel-danger";
-
-                var gw_heading = document.createElement("div");
-                gw_heading.className="panel-heading";
-                gw_heading.innerHTML="<h3 class=\"panel-title\">" + list_gateway[n].gateway_id + " (clients: "+ list_gateway[n].num_client + ")</h3>";
-                var gw_body = document.createElement("div");
-                var cpu = Math.floor(list_gateway[n].cpu_usage);
-                var mem = Math.floor(list_gateway[n].mem_usage);
-                gw_body.className="panel-body";
-                gw_body.innerHTML="<div class=\"row\"><div class=\"col-md-2\">CPU</div><div class=\"col-md-10\"><div class=\"progress\"><div class=\"progress-bar progress-bar-info\" role=\"progressbar\" aria-valuenow=\"" + cpu + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + cpu +"%\">" + cpu + "% </div></div></div></div>"+  "<div class=\"row\"><div class=\"col-md-2\">MEM</div><div class=\"col-md-10\"> <div class=\"progress\"> <div class=\"progress-bar progress-bar-danger\" role=\"progressbar\" aria-valuenow=\"" + mem + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + mem +"%\">" + mem + "% </div></div></div></div>";
-                gw.appendChild(gw_heading);
-                gw.appendChild(gw_body);
-
-                server_panel.appendChild(gw);
+            for (n = 0; n < list_gateway.length; n++){
+                var gw = list_gateway[n];
+                var server = {
+                    heading: gw.gateway_id + " (clients: " + gw.num_client + ")",
+                    cpu: Math.floor(gw.cpu_usage),
+                    mem: Math.floor(gw.mem_usage),
+                    desc: ""
+                };
+                create_server_panel("success", server);
             }
         }
-        function update_cell_table(data){
+
+        function update_cell_panel(data){
              list_cellserver = JSON.parse(data).cellserver.list_cellserver;
 
-            for(n=0; n<list_cellserver.length; n++){
-                var cs = document.createElement("div");
-                cs.className="panel panel-success";
+            for (n = 0; n < list_cellserver.length; n++) {
+                var cs = list_cellserver[n];
+                var server = {
+                    heading: cs.cellserver_id + " (zones: " + cs.num_zone + ")",
+                    cpu: Math.floor(cs.cpu_usage),
+                    mem: Math.floor(cs.mem_usage),
+                    desc: ""
+                };
+                create_server_panel("warning", server);
+            }
+        }
 
-                var cs_heading = document.createElement("div");
-                cs_heading.className="panel-heading";
-                cs_heading.innerHTML="<h3 class=\"panel-title\">" + list_cellserver[n].cellserver_id + " (zones: "+ list_cellserver[n].num_zone + ")</h3>";
-                var cs_body = document.createElement("div");
-                var cpu = Math.floor(list_cellserver[n].cpu_usage);
-                var mem = Math.floor(list_cellserver[n].mem_usage);
-                cs_body.className="panel-body";
-                cs_body.innerHTML="<div class=\"row\"><div class=\"col-md-2\">CPU</div><div class=\"col-md-10\"><div class=\"progress\"><div class=\"progress-bar progress-bar-info\" role=\"progressbar\" aria-valuenow=\"" + cpu + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + cpu +"%\">" + cpu + "% </div></div></div></div>"+  "<div class=\"row\"><div class=\"col-md-2\">MEM</div><div class=\"col-md-10\"> <div class=\"progress\"> <div class=\"progress-bar progress-bar-danger\" role=\"progressbar\" aria-valuenow=\"" + mem + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + mem +"%\">" + mem + "% </div></div></div></div>";
-                cs.appendChild(cs_heading);
-                cs.appendChild(cs_body);
+        function CanvasState(canvas) {
+            this.tracking_client = "";
+            this.zones = [];
+            this.canvas = canvas;
+            this.color_dictionary_key = [];
+            this.color_dictionary_value = [];
+            this.size = 512;
 
-                server_panel.appendChild(cs);
+            var myState = this;
+
+            canvas.addEventListener("mousedown", function(e) {
+                var mouse = myState.getMouse(e);
+                var mx = mouse.x;
+                var my = mouse.y;
+                var n, m;
+
+                var zones = myState.zones;
+
+                for (n = 0; n < zones.length; n++) {
+                    var zone = zones[n];
+                    if (zone.lt_x <= mx && zone.rb_x >= mx &&
+                        zone.lt_y <= my && zone.rb_y >= my) {
+                        for (m = 0; m < zone.clients.list_client.length; m++) {
+                            client = zone.clients.list_client[m];
+                            if (client.client_x-4 <= mx &&
+                                client.client_x+4 >= mx &&
+                                client.client_y-4 <= my &&
+                                client.client_y+4 >= my &&
+                                client.client_id != myState.tracking_client) {
+                                myState.tracking_client = client.client_id;
+                                myState.draw(zones);
+                            }
+                        }
+                    }
+                }
+            }, true);
+        }
+
+        CanvasState.prototype.clear = function (){
+            if (this.canvas.getContext) {
+                var ctx = canvas.getContext("2d");
+                ctx.clearRect(0,0,this.canvas.width, canvas.height);
             }
         }
 
 
-        function parse_data(data){
-            list_zone = JSON.parse(data).zone.list_zone;
-            for(n=0;n<list_zone.length;n++){
-                draw_zone(list_zone[n].lt_x, list_zone[n].lt_y, list_zone[n].width, list_zone[n].height, list_zone[n].zone_id);
-                list_client = list_zone[n].clients.list_client
-                for(c=0;c<list_client.length;c++){
-                    draw_point(list_client[c].client_x, list_client[c].client_y);
+        CanvasState.prototype.draw = function (zones) {
+            var n, c;
+
+            this.zones = zones;
+            this.clear();
+
+            for (n = 0; n < zones.length; n++) {
+                var zone = zones[n];
+
+                if (this.color_dictionary_key.indexOf(zone.zone_id)) {
+                    var r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+
+                    this.color_dictionary_key.push(zone.zone_id);
+                    this.color_dictionary_value.push("rgb(" + r + "," + g + "," + b + ")");
+                }
+
+                this.draw_zone (zone.lt_x, zone.lt_y,
+                                zone.width, zone.height, zone.zone_id);
+           }
+
+           for (n = 0; n < zones.length; n++) {
+                var zone = zones[n];
+                clients = zone.clients.list_client;
+
+                for (c = 0; c < clients.length; c++) {
+                    var client = clients[c];
+                    this.draw_point (client.client_x, client.client_y);
+
+                    if (this.tracking_client === client.client_id) {;
+                        this.draw_client_id (client.client_id,
+                                             client.client_x,
+                                             client.client_y);
+                    }
                 }
             }
+        }
+
+        CanvasState.prototype.draw_zone = function (x, y, w, h, id) {
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext("2d");
+                var index = this.color_dictionary_key.indexOf(id);
+
+                if (index >= 0) {
+                    ctx.fillStyle = this.color_dictionary_value[index];
+                    ctx.fillRect(x,y,w,h);
+                    ctx.strokeRect(x,y,w,h);
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.font = "10pt arial normal";
+                    ctx.textAlign = "center";
+                    ctx.fillText(id, x+w/2, y+h/2);
+                }
+            }
+        }
+
+        CanvasState.prototype.draw_point = function (x, y) {
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext('2d');
+                ctx.fillStyle = "rgb(255, 0, 0)";
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            }
+        }
+
+        CanvasState.prototype.draw_client_id = function (id, x, y) {
+            if (this.canvas.getContext) {
+                var ctx = canvas.getContext("2d");
+                ctx.font = "10pt arial normal";
+                ctx.fillStyle = "rgb(255, 0, 0)";
+                if (x < 256) {
+                    ctx.textAlign = "left";
+                    ctx.fillText(id, x + 4,y + 4);
+                } else {
+                    ctx.textAlign = "right";
+                    ctx.fillText(id, x - 4, y + 4);
+                }
+            }
+        }
+
+        CanvasState.prototype.getMouse = function (e) {
+            var element = this.canvas;
+            var offsetX = 0, offsetY = 0, mx, my;
+
+            if (element.offsetParent !== undefined) {
+                do {
+                    offsetX += element.offsetLeft;
+                    offsetY += element.offsetTop;
+                } while ((element = element.offsetParent));
+            }
+
+            mx = e.pageX - offsetX;
+            my = e.pageY - offsetY;
+
+            return {x: mx, y: my};
+       }
+
+        function parse_data(data){
+            // Canvas setting
+            list_zone = JSON.parse(data).zone.list_zone;
+            canvas_state.draw(list_zone);
+
+            // Panel setting
             panel_init();
-            update_gateway_table(data);
-            update_cell_table(data);
+            update_gateway_panel(data);
+            update_cell_panel(data);
         }
 
         window.addEventListener("load", init, false);
