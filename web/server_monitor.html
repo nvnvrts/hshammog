@@ -1,124 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head lang="en">
-    <meta charset="utf-8">
-    <title>HSHAMMOG WebSocket Test</title>
-    <script language="javascript" type="text/javascript">
-        var uri = "ws://222.122.192.69:8080/";
-        var output;
-        function init() {
-            output = document.getElementById("output")
-            connect()
-        }
-        function connect() {
-            websocket = new WebSocket(uri);
-            websocket.onopen = onOpen;
-            websocket.onclose = onClose;
-            websocket.onmessage = onMessage;
-            websocket.onerror = onError;
-        }
+    <meta charset="UTF-8">
+    <title></title>
+<style>
+table, th, td {
+    border: 1px solid black;
+    border-collapse: collapse;
+    padding:15px;
+    text-align:center;
+}
+</style>
 
-        function onOpen(event) {
-        }
-        function onClose(event) {
-        }
-        function onMessage(event) {
-            //writeToScreen(event.data)
-            update_gateway_table(event.data);
-            update_cell_table(event.data);
-        }
-        function onError(event) {
-        }
-        function writeToScreen(message) {
-            var pre = document.createElement("p");
-            pre.style.wordWrap = "break-word";
-            pre.innerHTML = message
-            output.appendChild(pre)
-        }
-
-        function gwAddRow(id, cpu, mem, client_num){
-            var tableElem = document.getElementById("gateway_table");
-            var row_index = tableElem.rows.length;
-            newTr = tableElem.insertRow(row_index);
-            newTr.align = "center";
-
-            newTd=newTr.insertCell(0);
-            newTd.innerHTML = id;
-            newTd=newTr.insertCell(1);
-            newTd.innerHTML = cpu;
-            newTd=newTr.insertCell(2);
-            newTd.innerHTML = mem;
-            newTd=newTr.insertCell(3);
-            newTd.innerHTML = client_num;
-        }
-
-        function csAddRow(id, cpu, mem, zone_num){
-            var tableElem = document.getElementById("cell_table");
-            var row_index = tableElem.rows.length;
-            newTr = tableElem.insertRow(row_index);
-            newTr.align = "center";
-
-            newTd=newTr.insertCell(0);
-            newTd.innerHTML = id;
-            newTd=newTr.insertCell(1);
-            newTd.innerHTML = cpu;
-            newTd=newTr.insertCell(2);
-            newTd.innerHTML = mem;
-            newTd=newTr.insertCell(3);
-            newTd.innerHTML = zone_num;
-        }
-
-        function table_init(table_id){
-            var tableElem = document.getElementById(table_id);
-            var row_index = tableElem.rows.length;
-            for(n=1;n<row_index;n++){
-                tableElem.deleteRow(n);
-            }
-        }
-
-        function update_gateway_table(data){
-            table_init("gateway_table");
-
-            list_gateway = JSON.parse(data).gateway.list_gateway;
-
-            for(n=0; n<list_gateway.length; n++){
-                gwAddRow(list_gateway[n].gateway_id, list_gateway[n].cpu_usage, list_gateway[n].mem_usage, list_gateway[n].num_client);
-            }
-        }
-        function update_cell_table(data){
-            table_init("cell_table");
-
-            list_cellserver = JSON.parse(data).cellserver.list_cellserver;
-
-            for(n=0; n<list_cellserver.length; n++){
-                csAddRow(list_cellserver[n].cellserver_id, list_cellserver[n].cpu_usage, list_cellserver[n].mem_usage, list_cellserver[n].num_zone);
-            }
-        }
-        window.addEventListener("load", init, false);
-    </script>
 </head>
 <body>
-    <h2>GATEWAY SERVER STATUS</h2>
-    <table id="gateway_table" cellpadding="2" cellspacing="0" border="1" width="500">
-        <tr bgcolor="red">
-            <th>SERVER ID</th>
-            <th>CPU 사용률(%)</th>
-            <th>메모리 사용률(%)</th>
-            <th>CLIENT 개수</th>
-        </tr>
-    </table>
+<p id="test"></p>
 
-    <h2>CELL SERVER STATUS</h2>
-    <table id="cell_table" cellpadding="2" cellspacing="0" border="1" width="500">
-        <tr bgcolor="red">
-            <th>SERVER ID</th>
-            <th>CPU 사용률(%)</th>
-            <th>메모리 사용률(%)</th>
-            <th>ZONE 개수</th>
-        </tr>
-    </table>
+<script>
+var msg = [{server_num:11,cpu_usage:45,ram_usage:351,client_num:10},{server_num:12,cpu_usage:31,ram_usage:435,client_num:12},
+                    {server_num:21,cpu_usage:65,ram_usage:432,client_num:14},{server_num:22,cpu_usage:75,ram_usage:152,client_num:16}];
+    var data = {"gateway": {"num_gateway": 4, "list_gateway": [{"gateway_id": "gateway-2277312575", "num_client": 60, "cpu_usage": 89.24766625998792, "mem_usage": 66.54810713063257}, {"gateway_id": "gateway-2696350156", "num_client": 38, "cpu_usage": 32.01442230787881, "mem_usage": 55.44136504544296}, {"gateway_id": "gateway-2380990558", "num_client": 18, "cpu_usage": 24.597263130599302, "mem_usage": 14.756898227663095}, {"gateway_id": "gateway-2317355250", "num_client": 29, "cpu_usage": 53.16453319595291, "mem_usage": 59.99771532717442}]}, "zone": {"list_zone": [{"width": 512, "clients": {"num_client": 6, "list_client": [{"client_x": 497, "client_y": 375, "client_id": "client-2320631811"}, {"client_x": 61, "client_y": 175, "client_id": "client-2393573431"}, {"client_x": 482, "client_y": 336, "client_id": "client-2258831467"}, {"client_x": 118, "client_y": 70, "client_id": "client-2426931389"}, {"client_x": 122, "client_y": 23, "client_id": "client-2553088202"}, {"client_x": 356, "client_y": 208, "client_id": "client-2421229848"}]}, "zone_id": "zone-9c3609ca", "rb-x": 511, "lt-y": 0, "lt-x": 0, "rb-y": 511, "height": 512}], "num_zone": 1}, "cellserver": {"num_cellserver": 8, "list_cellserver": [{"cellserver_id": "cellserver-2422802682", "cpu_usage": 83.52176919185706, "list_zone": [], "num_zone": 0, "mem_usage": 88.83625628324342}, {"cellserver_id": "cellserver-2247755845", "cpu_usage": 46.01876295263653, "list_zone": [], "num_zone": 0, "mem_usage": 9.276531612243167}, {"cellserver_id": "cellserver-2360477943", "cpu_usage": 62.18175398035437, "list_zone": [], "num_zone": 0, "mem_usage": 76.79570616657924}, {"cellserver_id": "cellserver-2349074628", "cpu_usage": 49.89547179370209, "list_zone": [], "num_zone": 0, "mem_usage": 56.03380232892672}, {"cellserver_id": "cellserver-2612857152", "cpu_usage": 69.77801221686039, "list_zone": [], "num_zone": 0, "mem_usage": 73.76505900166043}, {"cellserver_id": "cellserver-2461272263", "cpu_usage": 40.12755446269003, "list_zone": [], "num_zone": 0, "mem_usage": 55.89593472791374}, {"cellserver_id": "cellserver-2274887730", "cpu_usage": 48.93157141668881, "list_zone": [], "num_zone": 0, "mem_usage": 71.85464413168813}, {"cellserver_id": "cellserver-2626423106", "cpu_usage": 95.04963293317032, "list_zone": ["zone-9c3609ca"], "num_zone": 1, "mem_usage": 65.89237735031233}]}};
+document.write("<table border=1 style=width:100%>");
+document.write("<tr><th>gateway_id</th><th>client_num</th><th>cpu_usage</th><th>ram_usage</th></tr>");
+for(i=0;i<data.gateway.num_gateway;i++){
+document.write("<tr><td>");
+document.write(data.gateway.list_gateway[i].gateway_id);
+document.write("</td><td>");
+document.write(data.gateway.list_gateway[i].num_client);
+document.write("</td><td>");
+document.write(data.gateway.list_gateway[i].cpu_usage);
+document.write("</td><td>");
+document.write(data.gateway.list_gateway[i].mem_usage);
+document.write("</td></tr>");
+}
+document.write("</table><br>");
 
-    <div id = "output"></div>
-
+document.write("<table border=1 style=width:100%>");
+document.write("<tr><th>cellserver_id</th><th>cpu_usage</th><th>num_zone</th><th>mem_usage</th></tr>");
+for(i=0;i<data.cellserver.num_cellserver;i++){
+document.write("<tr><td>");
+document.write(data.cellserver.list_cellserver[i].cellserver_id);
+document.write("</td><td>");
+document.write(data.cellserver.list_cellserver[i].cpu_usage);
+document.write("</td><td>");
+document.write(data.cellserver.list_cellserver[i].num_zone);
+document.write("</td><td>");
+document.write(data.cellserver.list_cellserver[i].mem_usage);
+document.write("</td></tr>");
+}
+document.write("</table><br>");
+    </script>
 </body>
 </html>

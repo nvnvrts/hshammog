@@ -5,21 +5,45 @@
     <title></title>
 </head>
 <body>
-<canvas id="can" width="512" height="512" style="border:1px solid black"></canvas>
+<canvas id="can" width="1024" height="1024" style="border:1px solid black"></canvas>
 <script>
-    var data = {"gateway": {"num_gateway": 4, "list_gateway": [{"gateway_id": "gateway-2277312575", "num_client": 60, "cpu_usage": 89.24766625998792, "mem_usage": 66.54810713063257}, {"gateway_id": "gateway-2696350156", "num_client": 38, "cpu_usage": 32.01442230787881, "mem_usage": 55.44136504544296}, {"gateway_id": "gateway-2380990558", "num_client": 18, "cpu_usage": 24.597263130599302, "mem_usage": 14.756898227663095}, {"gateway_id": "gateway-2317355250", "num_client": 29, "cpu_usage": 53.16453319595291, "mem_usage": 59.99771532717442}]}, "zone": {"list_zone": [{"width": 512, "clients": {"num_client": 6, "list_client": [{"client_x": 497, "client_y": 375, "client_id": "client-2320631811"}, {"client_x": 61, "client_y": 175, "client_id": "client-2393573431"}, {"client_x": 482, "client_y": 336, "client_id": "client-2258831467"}, {"client_x": 118, "client_y": 70, "client_id": "client-2426931389"}, {"client_x": 122, "client_y": 23, "client_id": "client-2553088202"}, {"client_x": 356, "client_y": 208, "client_id": "client-2421229848"}]}, "zone_id": "zone-9c3609ca", "rb-x": 511, "lt-y": 0, "lt-x": 0, "rb-y": 511, "height": 512}], "num_zone": 1}, "cellserver": {"num_cellserver": 8, "list_cellserver": [{"cellserver_id": "cellserver-2422802682", "cpu_usage": 83.52176919185706, "list_zone": [], "num_zone": 0, "mem_usage": 88.83625628324342}, {"cellserver_id": "cellserver-2247755845", "cpu_usage": 46.01876295263653, "list_zone": [], "num_zone": 0, "mem_usage": 9.276531612243167}, {"cellserver_id": "cellserver-2360477943", "cpu_usage": 62.18175398035437, "list_zone": [], "num_zone": 0, "mem_usage": 76.79570616657924}, {"cellserver_id": "cellserver-2349074628", "cpu_usage": 49.89547179370209, "list_zone": [], "num_zone": 0, "mem_usage": 56.03380232892672}, {"cellserver_id": "cellserver-2612857152", "cpu_usage": 69.77801221686039, "list_zone": [], "num_zone": 0, "mem_usage": 73.76505900166043}, {"cellserver_id": "cellserver-2461272263", "cpu_usage": 40.12755446269003, "list_zone": [], "num_zone": 0, "mem_usage": 55.89593472791374}, {"cellserver_id": "cellserver-2274887730", "cpu_usage": 48.93157141668881, "list_zone": [], "num_zone": 0, "mem_usage": 71.85464413168813}, {"cellserver_id": "cellserver-2626423106", "cpu_usage": 95.04963293317032, "list_zone": ["zone-9c3609ca"], "num_zone": 1, "mem_usage": 65.89237735031233}]}};
+    var uri = "ws://222.122.192.57:8080/";
+    function init(){
+    connect();
+    }
+    function connect(){
+    websocket = new WebSocket(uri);
+    websocket.onmessage = onMessage;
+
+    }
+    function onMessage(event){
+    var data = JSON.parse(event.data)
     var canvas = document.getElementById("can");
     var context = canvas.getContext("2d");
     context.fillstyle = "lightblue";
+    var startx;
+    var starty;
+    var endx;
+    var endy;
     for(i=0;i<data.zone.num_zone;i++){
     for(j=0;j<data.zone.list_zone[i].clients.num_client;j++){
     context.beginPath();
     context.arc(data.zone.list_zone[i].clients.list_client[j].client_x,data.zone.list_zone[i].clients.list_client[j].client_y,5,0,2*Math.PI,true);
     context.fill();
     }
+    startx=data.zone.list_zone[i].lt_x;
+    starty=data.zone.list_zone[i].lt_y;
+    endx=data.zone.list_zone[i].rb_x;
+    endy=data.zone.list_zone[i].rb_y;
+    context.rect(startx,starty,endx-startx,endy-starty);
+    context.strokeStyle = "black";
+    context.lineWidth = 2;
+    context.stroke();
     }
 context.closePath();
     context.fillstyle = "lightblue";
+    }
+    window.addEventListener("load", init, false);
 </script>
 
 </body>
