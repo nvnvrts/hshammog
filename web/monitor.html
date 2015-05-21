@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="utf-8">
+    <title>HSHAMMOG WebSocket Test</title>
+
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+    <style>
+    .progress {
+      margin-bottom: 0px;
+    }
+    </style>
+
+    <!-- jQuery library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+
+    <!-- Latest compiled JavaScript -->
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+
+    <script language="javascript" type="text/javascript">
+        var url = "ws://222.122.192.69:8080/";
+        var alert;
+        var server_panel;
+
+        function init() {
+            alert = document.getElementById("alert");
+            server_panel = document.getElementById("server_panel");
+            writeAlert("info", "Initializing WebSocket Connection");
+            connect()
+        }
+
+        function connect() {
+            websocket = new WebSocket(url);
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = onMessage;
+            websocket.onerror = onError;
+
+            writeAlert("success", "Connection to " + url + " successful")
+        }
+
+        function onOpen(event) {
+            writeAlert("success", "Websocket opened to " + url);
+        }
+
+        function onClose(event) {
+            writeAlert("success", "Websocket closed to " + url);
+        }
+
+        function onMessage(event) {
+            canvas_clear();
+
+            parse_data(event.data);
+
+            writeAlert("success", "Last Received at " + (new Date()).toLocaleString());
+        }
+
+        function onError(event) {
+            writeAlert("warning", "Error Occurred");
+        }
+
+        function writeAlert(level, message) {
+            alert.className = "alert alert-" + level;
+            alert.innerHTML = message;
+        }
+
+        function canvas_clear(){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+                ctx.clearRect(0,0,1024,1024);
+            }
+        }
+
+        function draw_zone(x, y, w, h, id){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+
+                r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+
+                ctx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
+                ctx.fillRect(x,y,w,h);
+                ctx.font = "8pt Arial";
+                ctx.textAlign = "center";
+                ctx.strokeText(id, x+w/2, y+h/2);
+            }
+        }
+
+        function draw_point(x,y){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+                ctx.fillStyle = "rgb(255, 0, 0)";
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            }
+        }
+
+        function gwAddRow(id, cpu, mem, client_num){
+            var tableElem = document.getElementById("gateway_table");
+            var row_index = tableElem.rows.length;
+            newTr = tableElem.insertRow(row_index);
+            newTr.align = "center";
+
+            newTd=newTr.insertCell(0);
+            newTd.innerHTML = id;
+            newTd=newTr.insertCell(1);
+            newTd.innerHTML = cpu;
+            newTd=newTr.insertCell(2);
+            newTd.innerHTML = mem;
+            newTd=newTr.insertCell(3);
+            newTd.innerHTML = client_num;
+        }
+
+        function csAddRow(id, cpu, mem, zone_num){
+            var tableElem = document.getElementById("cell_table");
+            var row_index = tableElem.rows.length;
+            newTr = tableElem.insertRow(row_index);
+            newTr.align = "center";
+
+            newTd=newTr.insertCell(0);
+            newTd.innerHTML = id;
+            newTd=newTr.insertCell(1);
+            newTd.innerHTML = cpu;
+            newTd=newTr.insertCell(2);
+            newTd.innerHTML = mem;
+            newTd=newTr.insertCell(3);
+            newTd.innerHTML = zone_num;
+        }
+
+        function panel_init() {
+            while(server_panel.firstChild) {
+                server_panel.removeChild(server_panel.firstChild);
+            }
+        }
+
+        function table_init(table_id){
+            var tableElem = document.getElementById(table_id);
+            var row_index = tableElem.rows.length;
+            for(n=1;n<row_index;n++){
+                tableElem.deleteRow(n);
+            }
+        }
+
+        function update_gateway_table(data){
+            list_gateway = JSON.parse(data).gateway.list_gateway;
+
+            for(n=0; n<list_gateway.length; n++){
+                var gw = document.createElement("div");
+                gw.className="panel panel-danger";
+
+                var gw_heading = document.createElement("div");
+                gw_heading.className="panel-heading";
+                gw_heading.innerHTML="<h3 class=\"panel-title\">" + list_gateway[n].gateway_id + " (clients: "+ list_gateway[n].num_client + ")</h3>";
+                var gw_body = document.createElement("div");
+                var cpu = Math.floor(list_gateway[n].cpu_usage);
+                var mem = Math.floor(list_gateway[n].mem_usage);
+                gw_body.className="panel-body";
+                gw_body.innerHTML="<div class=\"row\"><div class=\"col-md-2\">CPU</div><div class=\"col-md-10\"><div class=\"progress\"><div class=\"progress-bar progress-bar-info\" role=\"progressbar\" aria-valuenow=\"" + cpu + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + cpu +"%\">" + cpu + "% </div></div></div></div>"+  "<div class=\"row\"><div class=\"col-md-2\">MEM</div><div class=\"col-md-10\"> <div class=\"progress\"> <div class=\"progress-bar progress-bar-danger\" role=\"progressbar\" aria-valuenow=\"" + mem + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + mem +"%\">" + mem + "% </div></div></div></div>";
+                gw.appendChild(gw_heading);
+                gw.appendChild(gw_body);
+
+                server_panel.appendChild(gw);
+            }
+        }
+        function update_cell_table(data){
+             list_cellserver = JSON.parse(data).cellserver.list_cellserver;
+
+            for(n=0; n<list_cellserver.length; n++){
+                var cs = document.createElement("div");
+                cs.className="panel panel-success";
+
+                var cs_heading = document.createElement("div");
+                cs_heading.className="panel-heading";
+                cs_heading.innerHTML="<h3 class=\"panel-title\">" + list_cellserver[n].cellserver_id + " (zones: "+ list_cellserver[n].num_zone + ")</h3>";
+                var cs_body = document.createElement("div");
+                var cpu = Math.floor(list_cellserver[n].cpu_usage);
+                var mem = Math.floor(list_cellserver[n].mem_usage);
+                cs_body.className="panel-body";
+                cs_body.innerHTML="<div class=\"row\"><div class=\"col-md-2\">CPU</div><div class=\"col-md-10\"><div class=\"progress\"><div class=\"progress-bar progress-bar-info\" role=\"progressbar\" aria-valuenow=\"" + cpu + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + cpu +"%\">" + cpu + "% </div></div></div></div>"+  "<div class=\"row\"><div class=\"col-md-2\">MEM</div><div class=\"col-md-10\"> <div class=\"progress\"> <div class=\"progress-bar progress-bar-danger\" role=\"progressbar\" aria-valuenow=\"" + mem + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" style=\"width:" + mem +"%\">" + mem + "% </div></div></div></div>";
+                cs.appendChild(cs_heading);
+                cs.appendChild(cs_body);
+
+                server_panel.appendChild(cs);
+            }
+        }
+
+
+        function parse_data(data){
+            list_zone = JSON.parse(data).zone.list_zone;
+            for(n=0;n<list_zone.length;n++){
+                draw_zone(list_zone[n].lt_x, list_zone[n].lt_y, list_zone[n].width, list_zone[n].height, list_zone[n].zone_id);
+                list_client = list_zone[n].clients.list_client
+                for(c=0;c<list_client.length;c++){
+                    draw_point(list_client[c].client_x, list_client[c].client_y);
+                }
+            }
+            panel_init();
+            update_gateway_table(data);
+            update_cell_table(data);
+        }
+
+        window.addEventListener("load", init, false);
+    </script>
+</head>
+<body>
+    <div class="container">
+      <div class="page-header">
+        <h1>HSHAMMOG Service Monitor</h1>
+      </div>
+      <div id="alert"></div>
+      <div class="row">
+        <div class="col-md-7" align="center">
+          <canvas id="canvas" width="512" height="512"></canvas>
+        </div>
+        <div class="col-md-5" align="left" id="server_panel">
+        </div>
+      </div>
+    </div>
+</body>
+</html>

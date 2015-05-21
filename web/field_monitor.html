@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>HSHAMMOG WebSocket Test</title>
     <script language="javascript" type="text/javascript">
-        var uri = "ws://222.122.192.57:8080/";
+        var uri = "ws://222.122.192.69:8080/";
         var output;
         function init() {
             output = document.getElementById("output")
@@ -24,9 +24,9 @@
         function onClose(event) {
         }
         function onMessage(event) {
-            writeToScreen(event.data);
-            var message = JSON.parse(event.data);
-            handlers[message.cmd](message);
+            //writeToScreen(event.data);
+            canvas_clear();
+            parse_data(event.data);
         }
         function onError(event) {
         }
@@ -37,29 +37,48 @@
             output.appendChild(pre)
         }
 
+        function canvas_clear(){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+                ctx.clearRect(0,0,1024,1024);
+            }
+        }
+
         function draw_zone(x,y,w,h,color){
             var canvas = document.getElementById('canvas');
             if (canvas.getContext) {
                 var ctx = canvas.getContext('2d');
-                ctx.fillStyle = color;
-                ctx.fillRect(x,y,w,h);
+                //ctx.fillStyle = color;
+                ctx.strokeRect(x,y,w,h);
             }
         }
-        function draw_point(
-        function change_draw(){
-            draw_zone(0,0,500,500,"rgb(0,0,0)");
-            draw_zone(0,500,500,500,"rgb(0,0,250)");
-            draw_zone(500,0,500,500,"rgb(0,250,0)");
-            draw_zone(500,500,500,500,"rgb(250,0,0)");
 
+        function draw_point(x,y){
+            var canvas = document.getElementById('canvas');
+            if (canvas.getContext) {
+                var ctx = canvas.getContext('2d');
+                ctx.fillRect(x,y,2,2,"rgb(255,0,0)");
+            }
+        }
+
+        function parse_data(data){
+            list_zone = JSON.parse(data).zone.list_zone;
+            for(n=0;n<list_zone.length;n++){
+                draw_zone(list_zone[n].lt_x, list_zone[n].lt_y, list_zone[n].width, list_zone[n].height, "rgb(0,0,0)");
+                list_client = list_zone[n].clients.list_client
+                for(c=0;c<list_client.length;c++){
+                    draw_point(list_client[c].client_x, list_client[c].client_y);
+                }
+            }
         }
 
         window.addEventListener("load", init, false);
     </script>
 </head>
-<body onload="change_draw();">
+<body>
     <h2>HSHAMMOG WebSocket Test</h2>
     <div id="output"></div>
-    <canvas id="canvas" width="1000" height="1000"></canvas>
+    <canvas id="canvas" width="1024" height="1024"></canvas>
 </body>
 </html>
