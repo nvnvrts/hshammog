@@ -21,6 +21,10 @@ class Monitor(AbstractServer):
 
         self.client_websocket_port = client_websocket_port
 
+        self.field_clients = []
+        self.data = None
+        self.initial_size = 512
+
         logger.info('monitor %s initializing...' % self.id)
 
         # list of clients to broadcast
@@ -55,6 +59,22 @@ class Monitor(AbstractServer):
     def new_client_id(self):
         return ('client-%s' % self.new_hash())
 
+    def assign_clients(self):
+        for zone in self.data['zone']['list_zone']:
+            zone['clients']['list_client'] = []
+            zone['clients']['num_client'] = 0
+
+        for client in self.field_clients:
+            x = client['client_x']
+            y = client['client_y']
+
+            for zone in self.data['zone']['list_zone']:
+                if x >= zone['lt_x'] and x <= zone['rb_x'] and \
+                   y >= zone['lt_y'] and y <= zone['rb_y']:
+
+                    zone['clients']['list_client'].append(client)
+                    zone['clients']['num_client'] += 1
+
     def random_split_zone(self, zone):
         def horizontal_split(zone):
             rb_y1 = (zone['rb_y'] + zone['lt_y'])/2
@@ -87,17 +107,6 @@ class Monitor(AbstractServer):
                     'list_client': []
                 }
             }
-
-            for client in zone['clients']['list_client']:
-                if client['client_x'] >= zone1['lt_x'] and \
-                   client['client_x'] <= zone1['rb_x'] and \
-                   client['client_y'] >= zone1['lt_y'] and \
-                   client['client_y'] <= zone1['rb_y']:
-                    zone1['clients']['list_client'].append(client)
-                    zone1['clients']['num_client'] += 1
-                else:
-                    zone2['clients']['list_client'].append(client)
-                    zone2['clients']['num_client'] += 1
 
             return [zone1, zone2]
 
@@ -133,47 +142,36 @@ class Monitor(AbstractServer):
                 }
             }
 
-            for client in zone['clients']['list_client']:
-                if client['client_x'] >= zone1['lt_x'] and \
-                   client['client_x'] <= zone1['rb_x'] and \
-                   client['client_y'] >= zone1['lt_y'] and \
-                   client['client_y'] <= zone1['rb_y']:
-                    zone1['clients']['list_client'].append(client)
-                    zone1['clients']['num_client'] += 1
-                else:
-                    zone2['clients']['list_client'].append(client)
-                    zone2['clients']['num_client'] += 1
-
             return [zone1, zone2]
 
         return random.choice([vertical_split, horizontal_split])(zone)
 
-    def update_clients(self):
+    def create_data(self):
         data = {}
 
-        initial_size = 512
-
-        num_client = random.randint(1, 10)
+        num_client = random.randint(1, 100)
         clients = []
 
         for i in range(0, num_client):
             new_client = {
                 'client_id': self.new_client_id(),
-                'client_x': random.randint(0, initial_size-1),
-                'client_y': random.randint(0, initial_size-1)
+                'client_x': random.randint(0, self.initial_size-1),
+                'client_y': random.randint(0, self.initial_size-1)
             }
             clients.append(new_client)
+
+        self.field_clients = clients
 
         zones = []
 
         initial_zone = {
             'zone_id': self.new_zone_id(),
-            'width': initial_size,
-            'height': initial_size,
+            'width': self.initial_size,
+            'height': self.initial_size,
             'lt_x': 0,
             'lt_y': 0,
-            'rb_x': initial_size - 1,
-            'rb_y': initial_size - 1,
+            'rb_x': self.initial_size - 1,
+            'rb_y': self.initial_size - 1,
             'clients': {
                 'num_client': num_client,
                 'list_client': clients
@@ -240,14 +238,54 @@ class Monitor(AbstractServer):
             'list_cellserver': cellservers
         }
 
-        for client in self.clients.keys():
-            self.clients[client].send_data(json.dumps(data))
+        self.data = data
+        self.assign_clients()
+
+    def update_client(self):
+        self.update_data()
+
+        if self.data is not None:
+            for client in self.clients.keys():
+                self.clients[client].send_data(json.dumps(self.data))
+
+    def update_data(self):
+        if self.data is None:
+            self.create_data()
+        else:
+            gateways = self.data['gateway']['list_gateway']
+
+            for gateway in gateways:
+                gateway['cpu_usage'] = random.random()*100.0
+                gateway['mem_usage'] = random.random()*100.0
+
+            cellservers = self.data['cellserver']['list_cellserver']
+
+            for cellserver in cellservers:
+                cellserver['cpu_usage'] = random.random()*100.0
+                cellserver['mem_usage'] = random.random()*100.0
+
+            for client in self.field_clients:
+                client['client_x'] += random.randint(-4, 4)
+
+                if client['client_x'] < 0:
+                    client['client_x'] = 0
+                elif client['client_x'] >= self.initial_size:
+                    client['client_x'] = self.initial_size-1
+
+                client['client_y'] += random.randint(-4, 4)
+
+                if client['client_y'] < 0:
+                    client['client_y'] = 0
+                elif client['client_y'] >= self.initial_size:
+                    client['client_y'] = self.initial_size-1
+
+            self.assign_clients()
 
     def run(self):
         try:
             self.listen_websocket_client(self.client_websocket_port)
 
-            self.add_timed_call(self.update_clients, 5)
+            self.add_timed_call(self.update_client, 5)
             AbstractServer.run(self)
 
         except Exception as e:
