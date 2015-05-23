@@ -132,7 +132,7 @@
                 var gw = list_gateway[n];
                 var server = {
                     heading: gw.gateway_id + " (clients: " + gw.num_client + ")",
-                    cpu: Math.floor(gw.cpu_usage),
+                    cpu: Math.floor(gw.cpu_usage[0]),
                     mem: Math.floor(gw.mem_usage),
                     desc: ""
                 };
@@ -140,15 +140,15 @@
             }
         }
 
-        function update_cell_panel(data){
-             list_cellserver = JSON.parse(data).cellserver.list_cellserver;
+        function update_zoneserver_panel(data){
+             list_zoneserver = JSON.parse(data).zoneserver.list_zoneserver;
 
-            for (n = 0; n < list_cellserver.length; n++) {
-                var cs = list_cellserver[n];
+            for (n = 0; n < list_zoneserver.length; n++) {
+                var zs = list_zoneserver[n];
                 var server = {
-                    heading: cs.cellserver_id + " (zones: " + cs.num_zone + ")",
-                    cpu: Math.floor(cs.cpu_usage),
-                    mem: Math.floor(cs.mem_usage),
+                    heading: zs.zoneserver_id + " (zones: " + zs.num_zone + ")",
+                    cpu: Math.floor(zs.cpu_usage[0]),
+                    mem: Math.floor(zs.mem_usage),
                     desc: ""
                 };
                 create_server_panel("warning", server);
@@ -305,7 +305,7 @@
             // Panel setting
             panel_init();
             update_gateway_panel(data);
-            update_cell_panel(data);
+            update_zoneserver_panel(data);
         }
 
         window.addEventListener("load", init, false);

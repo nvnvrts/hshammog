@@ -7,7 +7,8 @@ class Message:
     ''' Message '''
 
     def __init__(self, cmd=None, cid=None, ciddest=None, nmaxroom=None,
-                 msg=None, rid=None, roomlist=None, timestamp=-1):
+                 msg=None, rid=None, roomlist=None, x=None, y=None,
+                 timestamp=-1):
         self.cmd = cmd
         self.cid = cid
         self.ciddest = ciddest
@@ -15,6 +16,8 @@ class Message:
         self.msg = msg
         self.rid = rid
         self.roomlist = roomlist
+        self.x = x
+        self.y = y
         self.timestamp = timestamp
 
     def dumps(self):
@@ -69,7 +72,29 @@ class MessageHelper(object):
         'rExitAll':
         (lambda message: {'cmd': 'rExitAll', 'cId': message.cid}),
         'rError':
-        (lambda message: {'cmd': 'rError', 'eMsg': message.msg})
+        (lambda message: {'cmd': 'rError', 'eMsg': message.msg}),
+        'fStart':
+        (lambda message: {'cmd': 'fLoc', 'cId': message.cid,
+                          'xCoordinate': message.x,
+                          'yCoordinate': message.y}),
+        'fMove':
+        (lambda message: {'cmd': 'fMove', 'cId': message.cid,
+                          'xDelta': message.x, 'yDelta': message.y}),
+        'fLookup':
+        (lambda message: {'cmd': 'fLookup', 'cId': message.cid}),
+        'fLoc':
+        (lambda message: {'cmd': 'fLoc', 'cId': message.cid,
+                          'xCoordinate': message.x,
+                          'yCoordinate': message.y}),
+        'fMsg':
+        (lambda message: {'cmd': 'fMsg', 'cId': message.cid,
+                          'msg': message.msg}),
+        'fBMsg':
+        (lambda message: {'cmd': 'fBMsg', 'cIdSrc': message.cid,
+                          'cIdDest': message.ciddest, 'msg': message.msg}),
+        'fError':
+        (lambda message: {'cmd': 'fError', 'cId': message.cid,
+                          'eMsg': message.msg})
     }
 
     decode_functions = {
@@ -118,6 +143,25 @@ class MessageHelper(object):
         (lambda message: Message(cmd='rExitAll', cid=message['cId'])),
         'rError':
         (lambda message: Message(cmd='rError', cid=message['cId'],
+                                 msg=message['eMsg'])),
+        'fStart':
+        (lambda message: Message(cmd='fStart', cid=message['cId'],
+                                 x=message['xCoordinate'],
+                                 y=message['yCoordinate'])),
+        'fMove':
+        (lambda message: Message(cmd='fMove', cid=message['cId'],
+                                 x=message['xDelta'], y=message['yDelta'])),
+        'fLookup':
+        (lambda message: Message(cmd='fLookup', cid=message['cId'])),
+        'fMsg':
+        (lambda message: Message(cmd='fMsg', cid=message['cId'],
+                                 msg=message['msg'])),
+        'fBMsg':
+        (lambda message: Message(cmd='fBMsg', cid=message['cIdSrc'],
+                                 ciddest=message['cIdDest'],
+                                 msg=message['msg'])),
+        'fError':
+        (lambda message: Message(cmd='fError', cid=message['cId'],
                                  msg=message['eMsg']))
     }
 
