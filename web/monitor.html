@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="utf-8">
+    <title>HSHAMMOG WebSocket Test</title>
+
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+    <style>
+    .progress {
+      margin-bottom: 0px;
+    }
+    </style>
+
+    <!-- jQuery library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+
+    <!-- Latest compiled JavaScript -->
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+
+    <!-- Mustache HTML rendering Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.8.1/mustache.min.js"></script>
+
+    <script id="panel_template" type="text/html">
+        <div class="panel-heading">
+            <h3 class="panel-title"> {{heading}} </h3>
+        </div> <!-- panel heading -->
+        <div class="panel-body">
+            <div class="row">
+                <div class="col-md-2"> CPU </div>
+                <div class="col-md-10">
+                    <div class="progress">
+                    <div class="progress-bar progress-bar-danger"
+                         role="progressbar" aria-valuenow="{{cpu}}"
+                         aria-valuemin="0" aria-valuemax="100"
+                         style="width:{{cpu}}%"> {{cpu}}% </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-2"> MEM </div>
+                <div class="col-md-10">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-info"
+                             role-"progressbar" aria-valuenow="{{mem}}"
+                             aria-valuemin="0" aria-valuemax="100"
+                             style="width:{{mem}}%"> {{mem}}% </div>
+                    </div>
+                </div>
+            </div>
+            {{desc}}
+        </div> <!-- panel body -->
+    </script>
+
+    <script language="javascript" type="text/javascript">
+        var url = "ws://222.122.192.69:8080/";
+
+        var alert_box;
+        var server_panel;
+        var panel_template;
+        var canvas_state;
+
+        function init() {
+            alert_box = document.getElementById("alert");
+            server_panel = document.getElementById("server_panel");
+            panel_template = document.getElementById("panel_template").innerHTML;
+            canvas_state = new CanvasState(document.getElementById("canvas"));
+            writeAlert("info", "Initializing WebSocket Connection");
+
+            connect();
+        }
+
+        function connect() {
+            websocket = new WebSocket(url);
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = onMessage;
+            websocket.onerror = onError;
+
+            writeAlert("success", "Connection to " + url + " successful")
+        }
+
+        function onOpen(event) {
+            writeAlert("success", "Websocket opened to " + url);
+        }
+
+        function onClose(event) {
+            writeAlert("success", "Websocket closed to " + url);
+        }
+
+        function onMessage(event) {
+            canvas_state.clear();
+
+            parse_data(event.data);
+
+            writeAlert("success", "Last Received at " + (new Date()).toLocaleString());
+        }
+
+        function onError(event) {
+            writeAlert("warning", "Error Occurred");
+        }
+
+        function writeAlert(level, message) {
+            alert_box.className = "alert alert-" + level;
+            alert_box.innerHTML = message;
+        }
+
+        function panel_init() {
+            while(server_panel.firstChild) {
+                server_panel.removeChild(server_panel.firstChild);
+            }
+        }
+
+        function create_server_panel(style, server) {
+            var output = Mustache.render(panel_template, server);
+            var new_panel = document.createElement("div");
+
+            if (server.cpu > 80 || server.mem > 80) {
+                style = "danger";
+            }
+
+            new_panel.className = "panel panel-" + style;
+            new_panel.innerHTML = output;
+            server_panel.appendChild(new_panel);
+        }
+
+        function update_gateway_panel(data){
+            list_gateway = JSON.parse(data).gateway.list_gateway;
+
+            for (n = 0; n < list_gateway.length; n++){
+                var gw = list_gateway[n];
+                var server = {
+                    heading: gw.gateway_id + " (clients: " + gw.num_client + ")",
+                    cpu: Math.floor(gw.cpu_usage),
+                    mem: Math.floor(gw.mem_usage),
+                    desc: ""
+                };
+                create_server_panel("success", server);
+            }
+        }
+
+        function update_cell_panel(data){
+             list_cellserver = JSON.parse(data).cellserver.list_cellserver;
+
+            for (n = 0; n < list_cellserver.length; n++) {
+                var cs = list_cellserver[n];
+                var server = {
+                    heading: cs.cellserver_id + " (zones: " + cs.num_zone + ")",
+                    cpu: Math.floor(cs.cpu_usage),
+                    mem: Math.floor(cs.mem_usage),
+                    desc: ""
+                };
+                create_server_panel("warning", server);
+            }
+        }
+
+        function CanvasState(canvas) {
+            this.tracking_client = "";
+            this.zones = [];
+            this.canvas = canvas;
+            this.color_dictionary_key = [];
+            this.color_dictionary_value = [];
+            this.size = 512;
+
+            var myState = this;
+
+            canvas.addEventListener("mousedown", function(e) {
+                var mouse = myState.getMouse(e);
+                var mx = mouse.x;
+                var my = mouse.y;
+                var n, m;
+
+                var zones = myState.zones;
+
+                for (n = 0; n < zones.length; n++) {
+                    var zone = zones[n];
+                    if (zone.lt_x <= mx && zone.rb_x >= mx &&
+                        zone.lt_y <= my && zone.rb_y >= my) {
+                        for (m = 0; m < zone.clients.list_client.length; m++) {
+                            client = zone.clients.list_client[m];
+                            if (client.client_x-4 <= mx &&
+                                client.client_x+4 >= mx &&
+                                client.client_y-4 <= my &&
+                                client.client_y+4 >= my &&
+                                client.client_id != myState.tracking_client) {
+                                myState.tracking_client = client.client_id;
+                                myState.draw(zones);
+                            }
+                        }
+                    }
+                }
+            }, true);
+        }
+
+        CanvasState.prototype.clear = function (){
+            if (this.canvas.getContext) {
+                var ctx = canvas.getContext("2d");
+                ctx.clearRect(0,0,this.canvas.width, canvas.height);
+            }
+        }
+
+
+        CanvasState.prototype.draw = function (zones) {
+            var n, c;
+
+            this.zones = zones;
+            this.clear();
+
+            for (n = 0; n < zones.length; n++) {
+                var zone = zones[n];
+
+                if (this.color_dictionary_key.indexOf(zone.zone_id)) {
+                    var r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+
+                    this.color_dictionary_key.push(zone.zone_id);
+                    this.color_dictionary_value.push("rgb(" + r + "," + g + "," + b + ")");
+                }
+
+                this.draw_zone (zone.lt_x, zone.lt_y,
+                                zone.width, zone.height, zone.zone_id);
+           }
+
+           for (n = 0; n < zones.length; n++) {
+                var zone = zones[n];
+                clients = zone.clients.list_client;
+
+                for (c = 0; c < clients.length; c++) {
+                    var client = clients[c];
+                    this.draw_point (client.client_x, client.client_y);
+
+                    if (this.tracking_client === client.client_id) {;
+                        this.draw_client_id (client.client_id,
+                                             client.client_x,
+                                             client.client_y);
+                    }
+                }
+            }
+        }
+
+        CanvasState.prototype.draw_zone = function (x, y, w, h, id) {
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext("2d");
+                var index = this.color_dictionary_key.indexOf(id);
+
+                if (index >= 0) {
+                    ctx.fillStyle = this.color_dictionary_value[index];
+                    ctx.fillRect(x,y,w,h);
+                    ctx.strokeRect(x,y,w,h);
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.font = "10pt arial normal";
+                    ctx.textAlign = "center";
+                    ctx.fillText(id, x+w/2, y+h/2);
+                }
+            }
+        }
+
+        CanvasState.prototype.draw_point = function (x, y) {
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext('2d');
+                ctx.fillStyle = "rgb(255, 0, 0)";
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            }
+        }
+
+        CanvasState.prototype.draw_client_id = function (id, x, y) {
+            if (this.canvas.getContext) {
+                var ctx = canvas.getContext("2d");
+                ctx.font = "10pt arial normal";
+                ctx.fillStyle = "rgb(255, 0, 0)";
+                if (x < 256) {
+                    ctx.textAlign = "left";
+                    ctx.fillText(id, x + 4,y + 4);
+                } else {
+                    ctx.textAlign = "right";
+                    ctx.fillText(id, x - 4, y + 4);
+                }
+            }
+        }
+
+        CanvasState.prototype.getMouse = function (e) {
+            var element = this.canvas;
+            var offsetX = 0, offsetY = 0, mx, my;
+
+            if (element.offsetParent !== undefined) {
+                do {
+                    offsetX += element.offsetLeft;
+                    offsetY += element.offsetTop;
+                } while ((element = element.offsetParent));
+            }
+
+            mx = e.pageX - offsetX;
+            my = e.pageY - offsetY;
+
+            return {x: mx, y: my};
+       }
+
+        function parse_data(data){
+            // Canvas setting
+            list_zone = JSON.parse(data).zone.list_zone;
+            canvas_state.draw(list_zone);
+
+            // Panel setting
+            panel_init();
+            update_gateway_panel(data);
+            update_cell_panel(data);
+        }
+
+        window.addEventListener("load", init, false);
+    </script>
+</head>
+<body>
+    <div class="container">
+      <div class="page-header">
+        <h1>HSHAMMOG Service Monitor</h1>
+      </div>
+      <div id="alert"></div>
+      <div class="row">
+        <div class="col-md-7" align="center">
+          <canvas id="canvas" width="512" height="512"></canvas>
+        </div>
+        <div class="col-md-5" align="left" id="server_panel">
+        </div>
+      </div>
+    </div>
+</body>
+</html>
