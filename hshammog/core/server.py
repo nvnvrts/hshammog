@@ -42,9 +42,6 @@ class AbstractServer():
         self.zoneserver_ids = []
         self.zone_ids = []
 
-        # periodic calls
-        self.timed_calls = []
-
     def ensure_path_zk(self, path):
         newpath = ''
 

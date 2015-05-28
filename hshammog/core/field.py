@@ -29,7 +29,7 @@ class ZoneMember:
         self.y = y
         self.state = state
 
-    def update(delta_x, delta_y):
+    def update(self, delta_x, delta_y):
         self.x += delta_x
         self.y += delta_y
 
@@ -51,7 +51,7 @@ class ZoneMember:
         outer_rb_y = min(global_size - 1, rb_y + border_width)
 
         if inner_lt_x <= self.x <= inner_rb_x and \
-                inner_ly_y <= self.y <= inner_rb_y:
+                inner_lt_y <= self.y <= inner_rb_y:
             self.state = ZoneMemberState.inner
         elif lt_x <= self.x <= rb_x and lt_y <= self.y <= rb_y:
             self.state = ZoneMemberState.perimeter
@@ -97,8 +97,38 @@ class Zone:
         return self.members.get(member_id)
 
     def update_member(self, member_id, delta_x, delta_y):
-        member = self.get_member(member_id)
-        state = ZoneMemberState.invalid
+        if member_id in self.members.keys():
+            member = self.get_member(member_id)
+            member.update(delta_x, delta_y)
+            member.in_grid(self.grid)
+
+            if member.state == ZoneMemberState.off or \
+               member.state == ZoneMemberState.invalid:
+                del self.members[member_id]
+            else:
+                self.members[member_id] = member
+
+            return member
+        else:
+            return None
+
+    def add_member(self, member_id, x, y):
+        member = ZoneMember(member_id, x, y, ZoneMemberState.invalid)
+        member.in_grid(self.grid)
+
+        if member.state != ZoneMemberState.off and \
+           member.state != ZoneMemberState.invalid:
+            self.members[member_id] = member
+            return True
+        else:
+            return False
+
+    def drop_member(self, member_id):
+        if member_id in self.members.keys():
+            del self.members[member_id]
+            return True
+        else:
+            return False
 
     def count(self):
         return len(self.members)

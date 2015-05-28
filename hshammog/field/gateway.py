@@ -104,6 +104,7 @@ class Gateway(AbstractServer):
         logger.debug('SUB %s %s' % (tag, data))
 
         # parse message from mq
+
         server_id, payload, timestamp = data.split('|', 2)
         message = MessageHelper.load_message(payload)
         message.timestamp = int(timestamp)
@@ -189,9 +190,9 @@ class Gateway(AbstractServer):
 
         self.update_zk_node_data()
 
-        # send message to all room servers
-        self.pub_message_to_mq('roomserver-allserver',
-                               Message(cmd='rExitAll', cid=client.get_id()))
+        # send message to all zone servers
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fExit', cid=client.get_id()))
 
     def validate_client(self, client, message):
         fetched_client = self.clients.get(message.cid)
@@ -234,13 +235,23 @@ class Gateway(AbstractServer):
                                             cid=client.get_id()),
                                     message.timestamp)
 
-    # on_client_f_start: TODO
+    # on_client_f_start
     def on_client_f_start(self, client, message):
-        pass
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fStart',
+                                       cid=message.cid,
+                                       x=message.x,
+                                       y=message.y,
+                                       timestamp=message.timestamp))
 
     # on_client_f_move: TODO
     def on_client_f_move(self, client, message):
-        pass
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fMove',
+                                       cid=message.cid,
+                                       x=message.x,
+                                       y=message.y,
+                                       timestamp=message.timestamp))
 
     # on_client_f_lookup: TODO
     def on_client_f_lookup(self, client, message):

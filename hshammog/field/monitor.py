@@ -50,11 +50,11 @@ class Monitor(AbstractServer):
                     self.on_zk_gateway_data_changed(gateway, data)
 
     def on_zk_gateway_removed(self, gateways):
-        logger.info('gateways are not: %s' % self.get_zk_gateways())
+        logger.info('gateways are now: %s' % self.get_zk_gateways())
 
         for gateway in gateways:
             if gateway in self.gateways:
-                del self.gateways[zone]
+                del self.gateways[gateway]
 
     def on_zk_gateway_data_changed(self, gateway, data):
         parsed_data = json.loads(data)

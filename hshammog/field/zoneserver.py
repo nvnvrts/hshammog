@@ -36,7 +36,8 @@ class ZoneServer(AbstractServer):
             'fStart': self.on_mq_f_start,
             'fMove': self.on_mq_f_move,
             'fLookup': self.on_mq_f_lookup,
-            'fMsg': self.on_mq_f_msg
+            'fMsg': self.on_mq_f_msg,
+            'fExit': self.on_mq_f_exit
         }
 
         logger.info('zone server %s initialized.' % self.id)
@@ -92,21 +93,52 @@ class ZoneServer(AbstractServer):
         # invoke mq message handler
         self.mq_handlers[message.cmd](server_id, message)
 
-    # on_mq_fstart: TODO
-    def on_mq_f_start(self):
+    # on_mq_f_start
+    def on_mq_f_start(self, server_id, message):
+        check = False
+
+        for zone_id, zone in self.zones.iteritems():
+            if zone.add_member(message.cid, message.x, message.y):
+                check = True
+                self.update_zone(zone)
+
+        if check:
+            self.publish_message(server_id,
+                                 Message(cmd='fLoc', cid=message.cid,
+                                         x=message.x, y=message.y,
+                                         timestamp=message.timestamp))
+
+    # on_mq_f_move: TODO
+    def on_mq_f_move(self, server_id, message):
+        check = False
+        new_x = -1
+        new_y = -1
+
+        for zone_id, zone in self.zones.iteritems():
+            member = zone.update_member(message.cid, message.x, message.y)
+            if member is not None:
+                self.update_zone(zone)
+
+                if not check:
+                    check = True
+                    self.publish_message(server_id,
+                                         Message(cmd='fLoc', cid=message.cid,
+                                                 x=member.x, y=member.y,
+                                                 timestamp=message.timestamp))
+
+    # on_mq_f_lookup: TODO
+    def on_mq_f_lookup(self, server_id, message):
         pass
 
-    # on_mq_fmove: TODO
-    def on_mq_f_move(self):
+    # on_mq_f_msg: TODO
+    def on_mq_f_msg(self, server_id, message):
         pass
 
-    # on_mq_flookup: TODO
-    def on_mq_f_lookup(self):
-        pass
-
-    # on_mq_fmsg: TODO
-    def on_mq_f_msg(self):
-        pass
+    # on_mq_f_exit:
+    def on_mq_f_exit(self, server_id, message):
+        for zone_id, zone in self.zones.iteritems():
+            if zone.drop_member(message.cid):
+                self.update_zone(zone)
 
     def dumps(self):
         data = {

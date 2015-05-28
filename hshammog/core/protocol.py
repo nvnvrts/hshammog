@@ -74,7 +74,7 @@ class MessageHelper(object):
         'rError':
         (lambda message: {'cmd': 'rError', 'eMsg': message.msg}),
         'fStart':
-        (lambda message: {'cmd': 'fLoc', 'cId': message.cid,
+        (lambda message: {'cmd': 'fStart', 'cId': message.cid,
                           'xCoordinate': message.x,
                           'yCoordinate': message.y}),
         'fMove':
@@ -94,7 +94,9 @@ class MessageHelper(object):
                           'cIdDest': message.ciddest, 'msg': message.msg}),
         'fError':
         (lambda message: {'cmd': 'fError', 'cId': message.cid,
-                          'eMsg': message.msg})
+                          'eMsg': message.msg}),
+        'fExit':
+        (lambda message: {'cmd': 'fExit', 'cId': message.cid})
     }
 
     decode_functions = {
@@ -153,6 +155,10 @@ class MessageHelper(object):
                                  x=message['xDelta'], y=message['yDelta'])),
         'fLookup':
         (lambda message: Message(cmd='fLookup', cid=message['cId'])),
+        'fLoc':
+        (lambda message: Message(cmd='fLoc', cid=message['cId'],
+                                 x=message['xCoordinate'],
+                                 y=message['yCoordinate'])),
         'fMsg':
         (lambda message: Message(cmd='fMsg', cid=message['cId'],
                                  msg=message['msg'])),
@@ -162,7 +168,9 @@ class MessageHelper(object):
                                  msg=message['msg'])),
         'fError':
         (lambda message: Message(cmd='fError', cid=message['cId'],
-                                 msg=message['eMsg']))
+                                 msg=message['eMsg'])),
+        'fExit':
+        (lambda message: Message(cmd='fExit', cid=message['cId']))
     }
 
     @staticmethod
