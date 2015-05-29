@@ -37,6 +37,7 @@ class Gateway(AbstractServer):
         self.mq_handlers = {
             'fLoc': self.on_mq_f_loc,
             'fBMsg': self.on_mq_f_bmsg,
+            'fList': self.on_mq_f_list,
             'fError': self.on_mq_f_error
         }
 
@@ -48,7 +49,12 @@ class Gateway(AbstractServer):
             'fStart': self.on_client_f_start,
             'fMove': self.on_client_f_move,
             'fLookup': self.on_client_f_lookup,
-            'fMsg': self.on_client_f_msg
+            'fMsg': self.on_client_f_msg,
+            'zAdd': self.on_client_z_add,
+            'zVSplit': self.on_client_z_vsplit,
+            'zHSplit': self.on_client_z_hsplit,
+            'zDestroy': self.on_client_z_destroy,
+            'zMerge': self.on_client_z_merge
         }
 
         # initialize client dictionary
@@ -113,6 +119,14 @@ class Gateway(AbstractServer):
         self.mq_handlers[message.cmd](message)
 
     def on_mq_f_loc(self, message):
+        client = self.clients.get(message.cid)
+
+        if client:
+            self.send_message_to_client(client, message, message.timestamp)
+        else:
+            pass
+
+    def on_mq_f_list(self, message):
         client = self.clients.get(message.cid)
 
         if client:
@@ -244,7 +258,7 @@ class Gateway(AbstractServer):
                                        y=message.y,
                                        timestamp=message.timestamp))
 
-    # on_client_f_move: TODO
+    # on_client_f_move
     def on_client_f_move(self, client, message):
         self.pub_message_to_mq('zoneserver-allserver',
                                Message(cmd='fMove',
@@ -253,12 +267,37 @@ class Gateway(AbstractServer):
                                        y=message.y,
                                        timestamp=message.timestamp))
 
-    # on_client_f_lookup: TODO
+    # on_client_f_lookup
     def on_client_f_lookup(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fLookup',
+                                       cid=message.cid,
+                                       x=message.x,
+                                       y=message.y,
+                                       timestamp=message.timestamp))
+
+    # on_client_f_msg: TODO
+    def on_client_f_msg(self, client, message):
         pass
 
-    # on_clinet_f_msg: TODO
-    def on_client_f_msg(self, client, message):
+    # on_client_z_add: TODO
+    def on_client_z_add(self, client, message):
+        pass
+
+    # on_client_z_vsplit: TODO
+    def on_client_z_vsplit(self, client, message):
+        pass
+
+    # on_client_z_hsplit: TODO
+    def on_client_z_hsplit(self, client, message):
+        pass
+
+    # on_client_z_destroy: TODO
+    def on_client_z_destroy(self, client, message):
+        pass
+
+    # on_client_z_merge: TODO
+    def on_client_z_merge(self, client, message):
         pass
 
     def on_client_s_exit(self, client, message):

@@ -7,8 +7,9 @@ class Message:
     ''' Message '''
 
     def __init__(self, cmd=None, cid=None, ciddest=None, nmaxroom=None,
-                 msg=None, rid=None, roomlist=None, x=None, y=None,
-                 timestamp=-1):
+                 msg=None, rid=None, roomlist=None, clientlist=None,
+                 x=None, y=None, width=None, height=None,
+                 zid1=None, zid2=None, timestamp=-1):
         self.cmd = cmd
         self.cid = cid
         self.ciddest = ciddest
@@ -16,8 +17,13 @@ class Message:
         self.msg = msg
         self.rid = rid
         self.roomlist = roomlist
+        self.clientlist = clientlist
         self.x = x
         self.y = y
+        self.width = width
+        self.height = height
+        self.zid1 = zid1
+        self.zid2 = zid2
         self.timestamp = timestamp
 
     def dumps(self):
@@ -86,6 +92,9 @@ class MessageHelper(object):
         (lambda message: {'cmd': 'fLoc', 'cId': message.cid,
                           'xCoordinate': message.x,
                           'yCoordinate': message.y}),
+        'fList':
+        (lambda message: {'cmd': 'fList', 'cId': message.cid,
+                          'clientList': message.clientlist}),
         'fMsg':
         (lambda message: {'cmd': 'fMsg', 'cId': message.cid,
                           'msg': message.msg}),
@@ -96,7 +105,20 @@ class MessageHelper(object):
         (lambda message: {'cmd': 'fError', 'cId': message.cid,
                           'eMsg': message.msg}),
         'fExit':
-        (lambda message: {'cmd': 'fExit', 'cId': message.cid})
+        (lambda message: {'cmd': 'fExit', 'cId': message.cid}),
+        'zAdd':
+        (lambda message: {'cmd': 'zAdd',
+                          'lt_x': message.x, 'lt_y': message.y,
+                          'width': message.width, 'height': message.height}),
+        'zVSplit':
+        (lambda message: {'cmd': 'zVSplit', 'zId': message.zid1}),
+        'zHSplit':
+        (lambda message: {'cmd': 'zHSplit', 'zId': message.zid1}),
+        'zDestroy':
+        (lambda message: {'cmd': 'zDestroy', 'zId': message.zid1}),
+        'zMerge':
+        (lambda message: {'cmd': 'zMerge', 'zId1': message.zid1,
+                          'zId2': message.zid2})
     }
 
     decode_functions = {
@@ -159,6 +181,9 @@ class MessageHelper(object):
         (lambda message: Message(cmd='fLoc', cid=message['cId'],
                                  x=message['xCoordinate'],
                                  y=message['yCoordinate'])),
+        'fList':
+        (lambda message: Message(cmd='fList', cid=message['cId'],
+                                 clientlist=message['clientList'])),
         'fMsg':
         (lambda message: Message(cmd='fMsg', cid=message['cId'],
                                  msg=message['msg'])),
@@ -170,7 +195,26 @@ class MessageHelper(object):
         (lambda message: Message(cmd='fError', cid=message['cId'],
                                  msg=message['eMsg'])),
         'fExit':
-        (lambda message: Message(cmd='fExit', cid=message['cId']))
+        (lambda message: Message(cmd='fExit', cid=message['cId'])),
+        'zAdd':
+        (lambda message: Message(cmd='zAdd',
+                                 x=message['lt_x'],
+                                 y=message['lt_y'],
+                                 width=message['width'],
+                                 height=message['height'])),
+        'zVSplit':
+        (lambda message: Message(cmd='zVSplit',
+                                 zid1=message['zId'])),
+        'zHSplit':
+        (lambda message: Message(cmd='zHSplit',
+                                 zid1=message['zId'])),
+        'zDestroy':
+        (lambda message: Message(cmd='zDestroy',
+                                 zid1=message['zId'])),
+        'zMerge':
+        (lambda message: Message(cmd='zMerge',
+                                 zid1=message['zId1'],
+                                 zid2=message['zId2']))
     }
 
     @staticmethod

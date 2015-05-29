@@ -37,7 +37,12 @@ class ZoneServer(AbstractServer):
             'fMove': self.on_mq_f_move,
             'fLookup': self.on_mq_f_lookup,
             'fMsg': self.on_mq_f_msg,
-            'fExit': self.on_mq_f_exit
+            'fExit': self.on_mq_f_exit,
+            'zAdd': self.on_mq_z_add,
+            'zVSplit': self.on_mq_z_vsplit,
+            'zHSplit': self.on_mq_z_hsplit,
+            'zDestroy': self.on_mq_z_destroy,
+            'zMerge': self.on_mq_z_merge
         }
 
         logger.info('zone server %s initialized.' % self.id)
@@ -111,8 +116,6 @@ class ZoneServer(AbstractServer):
     # on_mq_f_move: TODO
     def on_mq_f_move(self, server_id, message):
         check = False
-        new_x = -1
-        new_y = -1
 
         for zone_id, zone in self.zones.iteritems():
             member = zone.update_member(message.cid, message.x, message.y)
@@ -126,9 +129,17 @@ class ZoneServer(AbstractServer):
                                                  x=member.x, y=member.y,
                                                  timestamp=message.timestamp))
 
-    # on_mq_f_lookup: TODO
+    # on_mq_f_lookup
     def on_mq_f_lookup(self, server_id, message):
-        pass
+        for zone_id, zone in self.zones.iteritems():
+            member = zone.get_member(message.cid)
+
+            if member is not None and \
+               (member.is_at_inner_zone() or member.is_at_perimeter_zone()):
+                self.publish_message(server_id,
+                                     Message(cmd='fList', cid=message.cid,
+                                             clientlist=zone.get_all_members(),
+                                             timestamp=message.timestamp))
 
     # on_mq_f_msg: TODO
     def on_mq_f_msg(self, server_id, message):
@@ -139,6 +150,22 @@ class ZoneServer(AbstractServer):
         for zone_id, zone in self.zones.iteritems():
             if zone.drop_member(message.cid):
                 self.update_zone(zone)
+
+    # on_mq_z_add: TODO
+    def on_mq_z_add(self, server_id, message):
+        pass
+
+    # on_mq_z_vsplit: TODO
+    def on_mq_z_vsplit(self, server_id, message):
+        pass
+
+    # on_mq_z_destroy: TODO
+    def on_mq_z_destroy(self, server_id, message):
+        pass
+
+    # on_mq_z_merge: TODO
+    def on_mq_z_merge(self, server_id, message):
+        pass
 
     def dumps(self):
         data = {

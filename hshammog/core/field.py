@@ -23,7 +23,7 @@ class ZoneMemberState(Enum):
 
 class ZoneMember:
     ''' ZoneMember '''
-    def __init__(self, client_id, x, y, state):
+    def __init__(self, client_id, x, y, state=ZoneMemberState.invalid):
         self.client_id = client_id
         self.x = x
         self.y = y
@@ -61,6 +61,19 @@ class ZoneMember:
         else:
             self.state = ZoneMemberState.out
 
+    def is_at_inner_zone(self):
+        return self.state == ZoneMemberState.inner
+
+    def is_at_perimeter_zone(self):
+        return self.state == ZoneMemberState.perimeter
+
+    def is_at_outer_zone(self):
+        return self.state == ZoneMemberState.outer
+
+    def is_out(self):
+        return (self.state == ZoneMemberState.out or
+                self.state == zoneMemberState.invalid)
+
 
 class Zone:
     ''' Zone '''
@@ -96,14 +109,27 @@ class Zone:
     def get_member(self, member_id):
         return self.members.get(member_id)
 
+    def get_all_members(self):
+        members_obj = []
+
+        for mid, member in self.members.iteritems():
+            member_obj = {
+                'client_id': member.client_id,
+                'client_x': member.x,
+                'client_y': member.y
+            }
+
+            members_obj.append(member_obj)
+
+        return members_obj
+
     def update_member(self, member_id, delta_x, delta_y):
         if member_id in self.members.keys():
             member = self.get_member(member_id)
             member.update(delta_x, delta_y)
             member.in_grid(self.grid)
 
-            if member.state == ZoneMemberState.off or \
-               member.state == ZoneMemberState.invalid:
+            if member.is_out():
                 del self.members[member_id]
             else:
                 self.members[member_id] = member
@@ -113,11 +139,10 @@ class Zone:
             return None
 
     def add_member(self, member_id, x, y):
-        member = ZoneMember(member_id, x, y, ZoneMemberState.invalid)
+        member = ZoneMember(member_id, x, y)
         member.in_grid(self.grid)
 
-        if member.state != ZoneMemberState.off and \
-           member.state != ZoneMemberState.invalid:
+        if not member.is_out():
             self.members[member_id] = member
             return True
         else:
