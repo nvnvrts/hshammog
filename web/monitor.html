@@ -60,6 +60,12 @@
         var server_panel;
         var panel_template;
         var canvas_state;
+        var globaldeltax = 0;
+        var globaldeltay = 0;
+        var isonlyone = 0;
+        var selectedzonenum;
+        var globalmultiplier = 1;
+        var allzone;
 
         function init() {
             alert_box = document.getElementById("alert");
@@ -165,7 +171,38 @@
 
             var myState = this;
 
-            canvas.addEventListener("mousedown", function(e) {
+            canvas.addEventListener("dblclick", function(e) {
+
+                var mouse = myState.getMouse(e);
+                var mx = mouse.x;
+                var my = mouse.y;
+                var n, m;
+
+                var zones = myState.zones;
+                if (isonlyone == 1)
+                {
+                isonlyone = 0;
+                myState.draw(allzone);
+                globalmultiplier = 1;
+                globaldeltax = 0;
+                globaldeltay = 0;
+                }
+                else
+                {
+                for (n = 0;n < zones.length; n++) {/*zone 클릭했을때 하나의 zone만 보이게한다*/
+                    var zone = zones[n];
+                    if (zone.lt_x <= mx && zone.rb_x >= mx &&
+                        zone.lt_y <= my && zone.rb_y >= my) {
+                        myState.clear();
+                        isonlyone = 1;
+                        myState.onezonedraw(zone);
+                        selectedzonenum = n;
+                        }
+                }
+                }
+            },true);
+
+                canvas.addEventListener("mousedown",function (e) {
                 var mouse = myState.getMouse(e);
                 var mx = mouse.x;
                 var my = mouse.y;
@@ -173,31 +210,79 @@
 
                 var zones = myState.zones;
 
-                for (n = 0; n < zones.length; n++) {
+                for (n = 0; n < zones.length; n++) {/*zone 위에 마우스 올려놨을때 좌표출력*/
                     var zone = zones[n];
-                    if (zone.lt_x <= mx && zone.rb_x >= mx &&
-                        zone.lt_y <= my && zone.rb_y >= my) {
+                    var newltx = zone.lt_x;
+                    var newrbx = zone.rb_x;
+                    var newlty = zone.lt_y;
+                    var newrby = zone.rb_y;
+                    if(isonlyone == 1)
+                    {
+                        if(zone.width >= zone.height)
+                        {
+                            newltx = 0;
+                            newrbx = 512;
+                            newlty = 256 - (zone.height * globalmultiplier)/2;
+                            newrby = 256 + (zone.height * globalmultiplier)/2;
+                        }
+                        else
+                        {
+                            newltx = 256 - (zone.width * globalmultiplier)/2;
+                            newrbx = 256 + (zone.width * globalmultiplier)/2;
+                            newlty = 0;
+                            newrby = 512;
+                        }
+                    }
+                    if (newltx <= mx && newrbx >= mx &&
+                        newlty <= my && newrby >= my) {
+
                         for (m = 0; m < zone.clients.list_client.length; m++) {
                             client = zone.clients.list_client[m];
-                            if (client.client_x-4 <= mx &&
-                                client.client_x+4 >= mx &&
-                                client.client_y-4 <= my &&
-                                client.client_y+4 >= my &&
+                            if (globalmultiplier*(client.client_x + globaldeltax - 256) + 256 -4 <= mx &&
+                                globalmultiplier*(client.client_x + globaldeltax - 256) + 256 +4>= mx &&
+                                globalmultiplier*(client.client_y + globaldeltay - 256) + 256 -4<= my &&
+                                globalmultiplier*(client.client_y + globaldeltay - 256) + 256 +4>= my &&
                                 client.client_id != myState.tracking_client) {
                                 myState.tracking_client = client.client_id;
+                                if (isonlyone == 1) {
+
+                                myState.onezonedraw(zones[n]);
+
+                                }
+                                else {
                                 myState.draw(zones);
+                                }
                             }
                         }
                     }
                 }
-            }, true);
-        }
+            },true);
+
+    }
 
         CanvasState.prototype.clear = function (){
             if (this.canvas.getContext) {
                 var ctx = canvas.getContext("2d");
                 ctx.clearRect(0,0,this.canvas.width, canvas.height);
             }
+        }
+
+        CanvasState.prototype.onezonedraw = function (zone) { /*draw only one zone*/
+            var n, c;
+
+            this.zone = zone;
+            this.clear();
+
+                if (this.color_dictionary_key.indexOf(zone.zone_id)) {
+                    var r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+
+                    this.color_dictionary_key.push(zone.zone_id);
+                    this.color_dictionary_value.push("rgb(" + r + "," + g + "," + b + ")");
+                }
+
+		    this.pmove(zone);
         }
 
 
@@ -218,8 +303,7 @@
                     this.color_dictionary_key.push(zone.zone_id);
                     this.color_dictionary_value.push("rgb(" + r + "," + g + "," + b + ")");
                 }
-
-                this.draw_zone (zone.lt_x, zone.lt_y,
+		    this.draw_zone (zone.lt_x, zone.lt_y,
                                 zone.width, zone.height, zone.zone_id);
            }
 
@@ -234,10 +318,12 @@
                     if (this.tracking_client === client.client_id) {;
                         this.draw_client_id (client.client_id,
                                              client.client_x,
-                                             client.client_y);
+                                             client.client_y,0,0);
+
                     }
                 }
             }
+
         }
 
         CanvasState.prototype.draw_zone = function (x, y, w, h, id) {
@@ -265,20 +351,6 @@
             }
         }
 
-        CanvasState.prototype.draw_client_id = function (id, x, y) {
-            if (this.canvas.getContext) {
-                var ctx = canvas.getContext("2d");
-                ctx.font = "10pt arial normal";
-                ctx.fillStyle = "rgb(255, 0, 0)";
-                if (x < 256) {
-                    ctx.textAlign = "left";
-                    ctx.fillText(id, x + 4,y + 4);
-                } else {
-                    ctx.textAlign = "right";
-                    ctx.fillText(id, x - 4, y + 4);
-                }
-            }
-        }
 
         CanvasState.prototype.getMouse = function (e) {
             var element = this.canvas;
@@ -300,13 +372,81 @@
         function parse_data(data){
             // Canvas setting
             list_zone = JSON.parse(data).zone.list_zone;
+            allzone = list_zone;
+            if (isonlyone == 1) {
+            canvas_state.onezonedraw(list_zone[selectedzonenum]);
+            }
+            else{
             canvas_state.draw(list_zone);
+            }
 
             // Panel setting
             panel_init();
             update_gateway_panel(data);
             update_cell_panel(data);
         }
+
+        CanvasState.prototype.pmove = function (zone){
+    var centeroldx = (zone.lt_x + zone.rb_x)/2;
+    var centeroldy = (zone.lt_y + zone.rb_y)/2;
+    var multiplier;
+    var deltax = 256 - centeroldx;
+    var deltay = 256 - centeroldy;
+
+    this.zones = [zone];
+    globaldeltax = deltax;
+    globaldeltay = deltay;
+    if (this.color_dictionary_key.indexOf(zone.zone_id)) {
+                    var r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+
+                    this.color_dictionary_key.push(zone.zone_id);
+                    this.color_dictionary_value.push("rgb(" + r + "," + g + "," + b + ")");
+                }
+
+/*    this.draw_zone (zone.lt_x + deltax, zone.lt_y + deltay,
+                        zone.width, zone.height, zone.zone_id); */
+        if(zone.width >= zone.height)
+        {
+            multiplier = 512/zone.width;
+            globalmultiplier = multiplier;
+            this.draw_zone(0,256 - (zone.height * multiplier)/2,512,zone.height*multiplier,zone.zone_id);
+        }
+        else
+        {
+            multiplier = 512/zone.height;
+            globalmultiplier = multiplier;
+            this.draw_zone(256 - (zone.width * multiplier)/2,0,zone.width*multiplier,512,zone.zone_id);
+        }
+    clients = zone.clients.list_client;
+
+    for (c = 0; c < clients.length; c++) {
+        var client = clients[c];
+ /*       this.draw_point (client.client_x + deltax, client.client_y + deltay);*/
+        this.draw_point (multiplier*(client.client_x + deltax - 256) + 256,multiplier*(client.client_y + deltay - 256) + 256);
+
+        if (this.tracking_client === client.client_id) {
+            this.draw_client_id (client.client_id, client.client_x, client.client_y, multiplier*(client.client_x + deltax - 256) + 256 - client.client_x, multiplier*(client.client_y + deltay - 256) + 256 - client.client_y);
+
+        }
+    }
+    }
+
+    CanvasState.prototype.draw_client_id = function (id, x, y, deltax, deltay) {
+            if (this.canvas.getContext) {
+                var ctx = canvas.getContext("2d");
+                ctx.font = "10pt arial normal";
+                ctx.fillStyle = "rgb(255, 0, 0)";
+                if (x + deltax < 256) {
+                    ctx.textAlign = "left";
+                    ctx.fillText("id : " + id + ", pos : (" + x + ", " + y + ")", x + deltax + 4,y + deltay + 4);
+                } else {
+                    ctx.textAlign = "right";
+                    ctx.fillText("id : " + id + ", pos : (" + x + ", " + y + ")", x + deltax - 4,y + deltay + 4);
+                }
+            }
+    }
 
         window.addEventListener("load", init, false);
     </script>
