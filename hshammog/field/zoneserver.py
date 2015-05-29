@@ -136,9 +136,18 @@ class ZoneServer(AbstractServer):
 
             if member is not None and \
                (member.is_at_inner_zone() or member.is_at_perimeter_zone()):
+
+                grid = zone.grid
+                width = grid['rb_x'] - grid['lt_x'] + 1
+                height = grid['rb_y'] - grid['lt_y'] + 1
                 self.publish_message(server_id,
                                      Message(cmd='fList', cid=message.cid,
                                              clientlist=zone.get_all_members(),
+                                             zid1=zone_id,
+                                             x=grid['lt_x'],
+                                             y=grid['lt_y'],
+                                             width=width,
+                                             height=height,
                                              timestamp=message.timestamp))
 
     # on_mq_f_msg: TODO
@@ -157,6 +166,10 @@ class ZoneServer(AbstractServer):
 
     # on_mq_z_vsplit: TODO
     def on_mq_z_vsplit(self, server_id, message):
+        pass
+
+    # on_mq_z_hsplit: TODO
+    def on_mq_z_hsplit(self, server_id, message):
         pass
 
     # on_mq_z_destroy: TODO

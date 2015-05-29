@@ -94,6 +94,12 @@ class MessageHelper(object):
                           'yCoordinate': message.y}),
         'fList':
         (lambda message: {'cmd': 'fList', 'cId': message.cid,
+                          'clientList': message.clientlist,
+                          'zId': message.zid1,
+                          'zone_lt_x': message.x,
+                          'zone_lt_y': message.y,
+                          'zone_width': message.width,
+                          'zone_height': message.height,
                           'clientList': message.clientlist}),
         'fMsg':
         (lambda message: {'cmd': 'fMsg', 'cId': message.cid,
@@ -183,7 +189,12 @@ class MessageHelper(object):
                                  y=message['yCoordinate'])),
         'fList':
         (lambda message: Message(cmd='fList', cid=message['cId'],
-                                 clientlist=message['clientList'])),
+                                 clientlist=message['clientList'],
+                                 zid1=message['zId'],
+                                 x=message['zone_lt_x'],
+                                 y=message['zone_lt_y'],
+                                 width=message['zone_width'],
+                                 height=message['zone_height'])),
         'fMsg':
         (lambda message: Message(cmd='fMsg', cid=message['cId'],
                                  msg=message['msg'])),
