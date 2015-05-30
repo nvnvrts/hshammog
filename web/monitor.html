@@ -376,7 +376,7 @@
             if (this.display_mode === 0) {
                 update_gateway_panel();
                 update_zoneserver_panel();
-                
+
                 for (n = 0; n < zones.length; n++) {
                     var zone = zones[n];
             		    this.draw_zone (zone.lt_x, zone.lt_y, zone.width, zone.height, zone.zone_id);
@@ -502,7 +502,7 @@
                 ctx.font = "10pt arial normal";
                 ctx.fillStyle = "rgb(255, 0, 0)";
 
-                if (x < this.canvas.width/2) {
+                if (pos_x < this.canvas.width/2) {
                     ctx.textAlign = "left";
                     ctx.fillText("id : " + id + ", pos : (" + x + ", " + y + ")", pos_x + 4, pos_y + 4);
                 } else {
