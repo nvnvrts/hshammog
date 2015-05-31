@@ -22,7 +22,7 @@
     <!-- Mustache HTML rendering Engine -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.8.1/mustache.min.js"></script>
 
-    <script id="panel_template" type="text/html">
+    <script id="panel_server_template" type="text/html">
         <div class="panel-heading">
             <h3 class="panel-title"> {{heading}} </h3>
         </div> <!-- panel heading -->
@@ -53,18 +53,31 @@
         </div> <!-- panel body -->
     </script>
 
+    <script id="panel_client_template" type="text/html">
+        <div class="panel-heading">
+            <h3 class="panel-title"> {{heading}} </h3>
+        </div> <!-- panel heading -->
+        <div class="panel-body">
+          xCoordinate: {{xCoordinate}}, yCoordinate: {{yCoordinate}}
+        </div>
+    </script>
+
     <script language="javascript" type="text/javascript">
         var url = "ws://222.122.192.69:8080/";
 
         var alert_box;
-        var server_panel;
-        var panel_template;
+        var side_panel;
+        var panel_server_template;
+        var panel_client_template;
         var canvas_state;
+        var received_data;
 
         function init() {
             alert_box = document.getElementById("alert");
-            server_panel = document.getElementById("server_panel");
-            panel_template = document.getElementById("panel_template").innerHTML;
+            side_panel = document.getElementById("side_panel");
+            panel_server_template = document.getElementById("panel_server_template").innerHTML;
+            panel_client_template = document.getElementById("panel_client_template").innerHTML;
+
             canvas_state = new CanvasState(document.getElementById("canvas"));
             writeAlert("info", "Initializing WebSocket Connection");
 
@@ -107,51 +120,98 @@
         }
 
         function panel_init() {
-            while(server_panel.firstChild) {
-                server_panel.removeChild(server_panel.firstChild);
+            while(side_panel.firstChild) {
+                side_panel.removeChild(side_panel.firstChild);
             }
         }
 
-        function create_server_panel(style, server) {
-            var output = Mustache.render(panel_template, server);
+        function create_client_side_panel(style, client) {
+            var output = Mustache.render(panel_client_template, client);
             var new_panel = document.createElement("div");
-
-            if (server.cpu > 80 || server.mem > 80) {
-                style = "danger";
-            }
 
             new_panel.className = "panel panel-" + style;
             new_panel.innerHTML = output;
-            server_panel.appendChild(new_panel);
+            side_panel.appendChild(new_panel);
         }
 
-        function update_gateway_panel(data){
+        function update_client_panel() {
+            var z, c;
+            var data = received_data;
+            zones = JSON.parse(data).zone.list_zone;
+
+            for (z = 0; z < zones.length; z++) {
+                var zone = zones[z];
+
+                if (canvas_state.selected_zone_id === zone.zone_id) {
+                    var clients = zone.clients.list_client;
+
+                    for (c = 0; c < clients.length; c++) {
+                        var client = {
+                            xCoordinate: clients[c].client_x,
+                            yCoordinate: clients[c].client_y,
+                            heading: clients[c].client_id
+                        };
+
+                        create_client_side_panel("success", client);
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        function create_server_side_panel(style, server) {
+            var output = Mustache.render(panel_server_template, server);
+            var new_panel = document.createElement("div");
+
+            new_panel.className = "panel panel-" + style;
+            new_panel.innerHTML = output;
+            side_panel.appendChild(new_panel);
+        }
+
+        function update_gateway_panel() {
+            var data = received_data;
             list_gateway = JSON.parse(data).gateway.list_gateway;
 
             for (n = 0; n < list_gateway.length; n++){
                 var gw = list_gateway[n];
                 var server = {
                     heading: gw.gateway_id + " (clients: " + gw.num_client + ")",
-                    cpu: Math.floor(gw.cpu_usage[0]),
+                    cpu: Math.floor(gw.cpu_usage),
                     mem: Math.floor(gw.mem_usage),
                     desc: ""
                 };
-                create_server_panel("success", server);
+
+                style = "success";
+
+                if (gw.cpu_usage > 80 || gw.mem_usage > 80) {
+                    style = "danger";
+                }
+
+                create_server_side_panel(style, server);
             }
         }
 
-        function update_zoneserver_panel(data){
-             list_zoneserver = JSON.parse(data).zoneserver.list_zoneserver;
+        function update_zoneserver_panel() {
+            var data = received_data;
+            list_zoneserver = JSON.parse(data).zoneserver.list_zoneserver;
 
             for (n = 0; n < list_zoneserver.length; n++) {
                 var zs = list_zoneserver[n];
                 var server = {
                     heading: zs.zoneserver_id + " (zones: " + zs.num_zone + ")",
-                    cpu: Math.floor(zs.cpu_usage[0]),
+                    cpu: Math.floor(zs.cpu_usage),
                     mem: Math.floor(zs.mem_usage),
                     desc: ""
                 };
-                create_server_panel("warning", server);
+
+                style = "success";
+
+                if (zs.cpu_usage > 80 || zs.mem_usage > 80) {
+                    style = "danger";
+                }
+
+                create_server_side_panel(style, server);
             }
         }
 
@@ -159,13 +219,23 @@
             this.tracking_client = "";
             this.zones = [];
             this.canvas = canvas;
+
             this.color_dictionary_key = [];
             this.color_dictionary_value = [];
+
             this.size = 512;
+
+            // mode 0 for all zone view and mode 1 for one zone view
+            this.display_mode = 0;
+            this.offset_x = -1;
+            this.offset_y = -1;
+            this.multiplier = -1;
+            this.selected_zone_id = "";
+            this.orientation = -1;
 
             var myState = this;
 
-            canvas.addEventListener("mousedown", function(e) {
+            canvas.addEventListener("dblclick", function(e) {
                 var mouse = myState.getMouse(e);
                 var mx = mouse.x;
                 var my = mouse.y;
@@ -173,44 +243,117 @@
 
                 var zones = myState.zones;
 
-                for (n = 0; n < zones.length; n++) {
-                    var zone = zones[n];
-                    if (zone.lt_x <= mx && zone.rb_x >= mx &&
-                        zone.lt_y <= my && zone.rb_y >= my) {
-                        for (m = 0; m < zone.clients.list_client.length; m++) {
-                            client = zone.clients.list_client[m];
-                            if (client.client_x-4 <= mx &&
-                                client.client_x+4 >= mx &&
-                                client.client_y-4 <= my &&
-                                client.client_y+4 >= my &&
-                                client.client_id != myState.tracking_client) {
-                                myState.tracking_client = client.client_id;
-                                myState.draw(zones);
+                // if all zone view mode, enter into one zone view mode
+                if (myState.display_mode == 0)
+                {
+                    for (n = 0; n < zones.length; n++) {
+                        var zone = zones[n];
+
+                        if (zone.lt_x <= mx && zone.rb_x >= mx &&
+                            zone.lt_y <= my && zone.rb_y >= my) {
+
+                            myState.display_mode = 1;
+                            myState.selected_zone_id = zone.zone_id;
+
+                            // update geometry
+                            myState.offset_x = canvas.width/2 - (zone.lt_x + zone.rb_x)/2;
+                            myState.offset_y = canvas.height/2 - (zone.lt_y + zone.rb_y)/2;
+
+                            if (zone.width >= zone.height) {
+                                myState.multiplier = canvas.width/zone.width;
+                                myState.orientation = 0;
+                            } else {
+                                myState.multiplier = canvas.height/zone.height;
+                                myState.orientation = 1;
+                            }
+
+                            myState.draw();
+
+                            break;
+                        }
+                    }
+                }
+                // if one zone view mode, enter into all zone view mode
+                else {
+                    myState.display_mode = 0;
+                    myState.selected_zone_id = "";
+                    myState.offset_x = -1;
+                    myState.offset_y = -1;
+                    myState.multiplier = -1;
+                    myState.orientation = -1;
+
+                    myState.draw();
+                }
+            },true);
+
+            canvas.addEventListener("mousedown",function (e) {
+                var mouse = myState.getMouse(e);
+                var mx = mouse.x;
+                var my = mouse.y;
+                var n, c;
+
+                var zones = myState.zones;
+
+                if (myState.display_mode === 0) {
+                    for (n = 0; n < zones.length; n++) {
+                        var zone = zones[n];
+
+                        if (zone.lt_x <= mx && zone.rb_x >= mx &&
+                            zone.lt_y <= my && zone.rb_y >= my) {
+                            clients = zone.clients.list_client;
+
+                            for (c = 0; c < clients.length; c++) {
+                                var client = clients[c];
+
+                                if (client.client_x - 4 <= mx && client.client_x + 4 >= mx &&
+                                    client.client_y - 4 <= my && client.client_y + 4 >= my &&
+                                    client.client_id !== myState.tracking_client) {
+                                    myState.tracking_client = client.client_id;
+                                    myState.draw();
+                                }
                             }
                         }
                     }
                 }
-            }, true);
+                else {
+                    for (n = 0; n < zones.length; n++) {
+                        var zone = zones[n];
+
+                        if (zone.zone_id === myState.selected_zone_id) {
+                            clients = zone.clients.list_client;
+                            for (c = 0; c < clients.length; c++) {
+                                var client = clients[c];
+                                var new_x = myState.multiplier*(client.client_x + myState.offset_x - canvas.width/2) + canvas.width/2;
+                                var new_y = myState.multiplier*(client.client_y + myState.offset_y - canvas.height/2) + canvas.height/2;
+
+                                if (new_x - 4 <= mx && new_x + 4 >= mx &&
+                                    new_y - 4 <= my && new_y + 4 >= my &&
+                                    client.client_id !== myState.tracking_client) {
+                                    myState.tracking_client = client.client_id;
+                                    myState.draw();
+                                }
+                            }
+                        }
+                    }
+                }
+            },true);
+
         }
 
-        CanvasState.prototype.clear = function (){
+        CanvasState.prototype.clear = function () {
             if (this.canvas.getContext) {
                 var ctx = canvas.getContext("2d");
                 ctx.clearRect(0,0,this.canvas.width, canvas.height);
             }
         }
 
-
-        CanvasState.prototype.draw = function (zones) {
-            var n, c;
-
+        CanvasState.prototype.update_zone = function (zones) {
             this.zones = zones;
-            this.clear();
 
             for (n = 0; n < zones.length; n++) {
                 var zone = zones[n];
 
-                if (this.color_dictionary_key.indexOf(zone.zone_id)) {
+                if (this.color_dictionary_key.indexOf(zone.zone_id) < 0) {
                     var r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
                     var g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
                     var b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
@@ -218,23 +361,84 @@
                     this.color_dictionary_key.push(zone.zone_id);
                     this.color_dictionary_value.push("rgb(" + r + "," + g + "," + b + ")");
                 }
+            }
+        }
 
-                this.draw_zone (zone.lt_x, zone.lt_y,
-                                zone.width, zone.height, zone.zone_id);
-           }
+        CanvasState.prototype.draw = function () {
+            var n, c;
 
-           for (n = 0; n < zones.length; n++) {
-                var zone = zones[n];
-                clients = zone.clients.list_client;
+            this.clear();
+            panel_init();
 
-                for (c = 0; c < clients.length; c++) {
-                    var client = clients[c];
-                    this.draw_point (client.client_x, client.client_y);
+            var zones = this.zones;
 
-                    if (this.tracking_client === client.client_id) {;
-                        this.draw_client_id (client.client_id,
-                                             client.client_x,
-                                             client.client_y);
+            // if all zone view mode
+            if (this.display_mode === 0) {
+                update_gateway_panel();
+                update_zoneserver_panel();
+
+                for (n = 0; n < zones.length; n++) {
+                    var zone = zones[n];
+            		    this.draw_zone (zone.lt_x, zone.lt_y, zone.width, zone.height, zone.zone_id);
+                }
+
+                for (n = 0; n < zones.length; n++) {
+                    var zone = zones[n];
+
+                    clients = zone.clients.list_client;
+
+                    for (c = 0; c < clients.length; c++) {
+                        var client = clients[c];
+                        this.draw_point (client.client_x, client.client_y, "rgb(255, 0, 0)");
+
+                        if (this.tracking_client === client.client_id) {
+                            this.draw_client_id (client.client_id,
+                                                 client.client_x,
+                                                 client.client_y,
+                                                 client.client_x,
+                                                 client.client_y);
+                        }
+                    }
+                }
+            }
+            // if one zone view mode
+            else {
+                update_client_panel();
+
+                for (n = 0; n < zones.length; n++) {
+                    var zone = zones[n];
+
+                    if (zone.zone_id === this.selected_zone_id) {
+                        if (this.orientation === 0) {
+                            this.draw_zone(0,
+                                           (canvas.height - zone.height * this.multiplier)/2,
+                                           canvas.width,
+                                           zone.height*this.multiplier,
+                                           zone.zone_id);
+                        }
+                        else {
+                            this.draw_zone((canvas.width - zone.width * this.multiplier)/2,
+                                           0,
+                                           zone.width*this.multiplier,
+                                           canvas.height,
+                                           zone.zone_id);
+                        }
+
+                        clients = zone.clients.list_client;
+
+                        for (c = 0; c < clients.length; c++) {
+                            var client = clients[c];
+                            var new_x = this.multiplier*(client.client_x + this.offset_x - canvas.width/2) + canvas.width/2;
+                            var new_y = this.multiplier*(client.client_y + this.offset_y - canvas.height/2) + canvas.height/2;
+
+                            this.draw_point (new_x, new_y, "rgb(255,0,0)");
+
+                            if (this.tracking_client === client.client_id) {
+                                this.draw_client_id (client.client_id, new_x, new_y, client.client_x, client.client_y);
+                            }
+                        }
+
+                        break;
                     }
                 }
             }
@@ -257,28 +461,14 @@
             }
         }
 
-        CanvasState.prototype.draw_point = function (x, y) {
+        CanvasState.prototype.draw_point = function (x, y, color) {
             if (this.canvas.getContext) {
                 var ctx = this.canvas.getContext('2d');
-                ctx.fillStyle = "rgb(255, 0, 0)";
+                ctx.fillStyle = color;
                 ctx.fillRect(x - 2, y - 2, 4, 4);
             }
         }
 
-        CanvasState.prototype.draw_client_id = function (id, x, y) {
-            if (this.canvas.getContext) {
-                var ctx = canvas.getContext("2d");
-                ctx.font = "10pt arial normal";
-                ctx.fillStyle = "rgb(255, 0, 0)";
-                if (x < 256) {
-                    ctx.textAlign = "left";
-                    ctx.fillText(id, x + 4,y + 4);
-                } else {
-                    ctx.textAlign = "right";
-                    ctx.fillText(id, x - 4, y + 4);
-                }
-            }
-        }
 
         CanvasState.prototype.getMouse = function (e) {
             var element = this.canvas;
@@ -295,17 +485,31 @@
             my = e.pageY - offsetY;
 
             return {x: mx, y: my};
-       }
+        }
 
         function parse_data(data){
+            received_data = data;
+
             // Canvas setting
             list_zone = JSON.parse(data).zone.list_zone;
-            canvas_state.draw(list_zone);
+            canvas_state.update_zone(list_zone);
+            canvas_state.draw();
+        }
 
-            // Panel setting
-            panel_init();
-            update_gateway_panel(data);
-            update_zoneserver_panel(data);
+        CanvasState.prototype.draw_client_id = function (id, pos_x, pos_y, x, y) {
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext("2d");
+                ctx.font = "10pt arial normal";
+                ctx.fillStyle = "rgb(255, 0, 0)";
+
+                if (pos_x < this.canvas.width/2) {
+                    ctx.textAlign = "left";
+                    ctx.fillText("id : " + id + ", pos : (" + x + ", " + y + ")", pos_x + 4, pos_y + 4);
+                } else {
+                    ctx.textAlign = "right";
+                    ctx.fillText("id : " + id + ", pos : (" + x + ", " + y + ")", pos_x - 4, pos_y + 4);
+                }
+            }
         }
 
         window.addEventListener("load", init, false);
@@ -321,7 +525,7 @@
         <div class="col-md-7" align="center">
           <canvas id="canvas" width="512" height="512"></canvas>
         </div>
-        <div class="col-md-5" align="left" id="server_panel">
+        <div class="col-md-5" align="left" id="side_panel">
         </div>
       </div>
     </div>
