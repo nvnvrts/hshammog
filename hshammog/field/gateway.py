@@ -282,23 +282,37 @@ class Gateway(AbstractServer):
 
     # on_client_z_add: TODO
     def on_client_z_add(self, client, message):
-        pass
-
+        self.pub_message_to_mq('zoneserver-allserver',
+			       Message(cmd='zAdd',
+				       x=message.x,
+                                       y=message.y,
+                                       width=message.width,
+                                       height=message.height))
+                                       
     # on_client_z_vsplit: TODO
     def on_client_z_vsplit(self, client, message):
-        pass
+        self.pub_message_to_mq('zoneserver-allserver',
+                              Message(cmd='zVSplit',
+                                      zid1=message.zid1))
 
     # on_client_z_hsplit: TODO
     def on_client_z_hsplit(self, client, message):
-        pass
+        self.pub_message_to_mq('zoneserver-allserver',
+                              Message(cmd='zHSplit',
+                                      zid1=message.zid1))
 
     # on_client_z_destroy: TODO
     def on_client_z_destroy(self, client, message):
-        pass
+        self.pub_message_to_mq('zoneserver-allserver',
+                              Message(cmd='zDestroy',
+                                      zid1=message.zid1))
 
     # on_client_z_merge: TODO
     def on_client_z_merge(self, client, message):
-        pass
+         self.pub_message_to_mq('zoneserver-allserver',
+                              Message(cmd='zMerge',
+                                      zid1=message.zid1,
+                                      zid2=message.zid2))
 
     def on_client_s_exit(self, client, message):
         if self.validate_client(client, message):

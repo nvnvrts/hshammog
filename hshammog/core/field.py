@@ -59,7 +59,7 @@ class ZoneMember:
                 outer_lt_y <= self.y <= outer_rb_y:
             self.state = ZoneMemberState.outer
         else:
-            self.state = ZoneMemberState.out
+            self.state = ZoneMemberState.off
 
     def is_at_inner_zone(self):
         return self.state == ZoneMemberState.inner
@@ -71,8 +71,8 @@ class ZoneMember:
         return self.state == ZoneMemberState.outer
 
     def is_out(self):
-        return (self.state == ZoneMemberState.out or
-                self.state == zoneMemberState.invalid)
+        return (self.state == ZoneMemberState.off or
+                self.state == ZoneMemberState.invalid)
 
 
 class Zone:

@@ -48,8 +48,9 @@ class ZoneServer(AbstractServer):
         logger.info('zone server %s initialized.' % self.id)
 
     # create a new zone
-    def create_zone(self):
-        zone = Zone(0, 0, 511, 511, 5, 4, 512, self.id)
+    def create_zone(self, lt_x, lt_y, rb_x, rb_y, max_mem, border, global_size, sid):
+        #zone = Zone(0, 0, 511, 511, 5, 4, 512, self.id)
+        zone = Zone(lt_x, lt_y, rb_x, rb_y, max_mem, border, global_size, sid)
         self.zones[zone.get_id()] = zone
 
         # create a new node for the zone
@@ -65,7 +66,9 @@ class ZoneServer(AbstractServer):
 
     # delete the zone
     def delete_zone(self, zone):
-        pass
+        
+        del self.zones[zone.get_id()]
+        self.zk_client.delete(path=self.zk_zone_zones_path + zone.get_id())
 
     # update zone data
     def update_zone(self, zone):
@@ -101,7 +104,6 @@ class ZoneServer(AbstractServer):
     # on_mq_f_start
     def on_mq_f_start(self, server_id, message):
         check = False
-
         for zone_id, zone in self.zones.iteritems():
             if zone.add_member(message.cid, message.x, message.y):
                 check = True
@@ -162,23 +164,77 @@ class ZoneServer(AbstractServer):
 
     # on_mq_z_add: TODO
     def on_mq_z_add(self, server_id, message):
-        pass
+
+        lt_x = int(message.x)
+        lt_y = int(message.y)
+        width = int(message.width)
+        height = int(message.height)
+
+        self.create_zone(lt_x, lt_y, lt_x + width, lt_y + height, 5, 4, 512, self.id)
+        
 
     # on_mq_z_vsplit: TODO
     def on_mq_z_vsplit(self, server_id, message):
-        pass
+
+        zId = message.zid1
+        zone = self.zones[zId]
+
+        rb_y1 = (zone.grid['rb_y'] + zone.grid['lt_y'])/2
+        lt_y2 = rb_y1 + 1
+
+        self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
+                     zone.grid['rb_x'], rb_y1,
+                     zone.max_members, zone.grid['border_width'],
+                     zone.grid['global_size'], self.id)
+
+        self.create_zone(zone.grid['lt_x'], lt_y2,
+                     zone.grid['rb_x'], zone.grid['rb_y'],
+                     zone.max_members, zone.grid['border_width'],
+                     zone.grid['global_size'], self.id)
+        self.delete_zone(zone)
 
     # on_mq_z_hsplit: TODO
     def on_mq_z_hsplit(self, server_id, message):
-        pass
+        
+        zId = message.zid1
+        zone = self.zones[zId]
+
+        rb_x1 = (zone.grid['rb_x'] + zone.grid['lt_x'])/2
+        lt_x2 = rb_x1 + 1
+
+        self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
+                     rb_x1, zone.grid['rb_y'],
+                     zone.max_members, zone.grid['border_width'],
+                     zone.grid['global_size'], self.id)
+        self.create_zone(lt_x2, self.grid['lt_y'],
+                     zone.grid['rb_x'], zone.grid['rb_y'],
+                     zone.max_members, zone.grid['border_width'],
+                     zone.grid['global_size'], self.id)
+        self.delete_zone(zone)
 
     # on_mq_z_destroy: TODO
     def on_mq_z_destroy(self, server_id, message):
-        pass
+
+        self.delete_zone(self.zones[message.zId])
 
     # on_mq_z_merge: TODO
     def on_mq_z_merge(self, server_id, message):
-        pass
+        
+        zId1 = message.zid1
+        zId2 = message.zid2
+        zone1 = self.zones[zId1]
+        zone2 = self.zones[zId2]
+
+        lt_x = min(zone1.grid['lt_x'], zone2.grid['lt_x'])
+        lt_y = min(zone1.grid['lt_y'], zone2.grid['lt_y'])
+        rb_x = max(zone1.grid['rb_x'], zone2.grid['rb_x'])
+        rb_y = max(zone1.grid['rb_y'], zone2.grid['rb_y'])
+
+        zone = self.create_zone(lt_x, lt_y, rb_x, rb_y, 
+                     5, 4, 511, self.id)
+
+        self.delete_zone(zone1)
+        self.delete_zone(zone2)
 
     def dumps(self):
         data = {
@@ -226,7 +282,7 @@ class ZoneServer(AbstractServer):
             # register monitoring
             self.add_timed_call(self.update_zk_node_data, 5)
 
-            self.create_zone()
+            zone = self.create_zone(0, 0, 511, 511, 5, 4, 512, self.id)
 
             AbstractServer.run(self)
 
