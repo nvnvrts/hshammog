@@ -1,15 +1,46 @@
 <!DOCTYPE html>
 <html>
 <head>
+<style>
+    button.pos_left {
+        position : fixed;
+        top : 340px;
+        left : 100px;
+        color : blue;
+    }
+    button.pos_right {
+        position : fixed;
+        top : 340px;
+        left : 180px;
+        color : blue;
+    }
+    button.pos_up {
+        position : fixed;
+        top : 300px;
+        left : 140px;
+        color : blue;
+    }
+    button.pos_down {
+        position : fixed;
+        top : 380px;
+        left : 140px;
+        color : blue;
+    }
+</style>
+
     <meta charset="utf-8">
     <title>HSHAMMOG WebSocket Test</title>
     <script language="javascript" type="text/javascript">
         var uri = "ws://222.122.192.57:8080/";
         var output;
-
+        var globalcid;
+        var globalmassage;
+        var data;
+        var canvas_state;
         function init() {
-            output = document.getElementById("output")
-            connect()
+            output = document.getElementById("output");
+            connect();
+
         }
 
         function connect() {
@@ -22,10 +53,19 @@
 
             handlers = {
                 sAccept: onSAccept,
-                rList: onRList,
-                rJAccept: onJAccept,
-                rBMsg: onRBMsg
+                fList: onFList,
+                fLoc : onFLoc
             };
+
+        }
+
+        function sleep(milliseconds) {
+            var start = new Date().getTime();
+            for (var i = 0; i < 1e7; i++) {
+                if ((new Date().getTime() - start) > milliseconds){
+                    break;
+                }
+            }
         }
 
         function onOpen(event) {
@@ -37,21 +77,104 @@
         }
 
         function onMessage(event) {
-            writeToScreen(event.data);
+           // writeToScreen(event.data);
 
-            var message = JSON.parse(event.data);
-            handlers[message.cmd](message);
+            globalmessage = JSON.parse(event.data);
+            handlers[globalmessage.cmd](globalmessage);
         }
 
         function onError(event) {
         }
 
+
         function onSAccept(message) {
-            sendMessage({ cmd: 'rLookup', cId: message.cId, nMaxRoom: 4 })
+            var temp = { cmd: 'fStart', cId: message.cId, xCoordinate: Math.floor(512*Math.random()), yCoordinate: Math.floor(512*Math.random())};
+            sendMessage({ cmd: 'fStart', cId: message.cId, xCoordinate: Math.floor(512*Math.random()), yCoordinate: Math.floor(512*Math.random())});
+            canvas_state = new CanvasState(document.getElementById("canvas"));
+        //    writeToScreen(JSON.stringify(temp));
+            globalcid = message.cId;
         }
 
-        function onRList(message) {
-            sendMessage({ cmd: 'rJoin', cId: message.cId, rId: 0 });
+        function onFLocL() { //left move, use globalmessage
+            sleep(50);
+            if(globalmessage.xCoordinate < 2) /*if can't move that direction*/
+            {
+                sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: - globalmessage.xCoordinate, yDelta: 0}); /*move to wall*/
+            }
+            else {
+            sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: -2, yDelta: 0}); /*move*/
+            }
+            fLookup();
+        }
+
+        function onFLocR() { //right move, use globalmessage
+            sleep(50);
+            if(globalmessage.xCoordinate > 509) { //if can't move right direction
+                sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: 511 - globalmessage.xCoordinate, yDelta: 0}); /*move to wall*/
+            }
+            else {
+            sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: 2, yDelta: 0}); /*move*/
+            }
+            fLookup();
+        }
+
+        function onFLocU() { //move to upside, use globalmessage
+
+            if(globalmessage.yCoordinate < 2) { //if can't move right direction
+                sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: 0, yDelta: - globalmessage.yCoordinate});
+            }
+            else {
+                sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: 0, yDelta: - 2});
+            }
+            fLookup();
+        }
+        function onFLocD() { //move to down, use globalmessage
+
+            if(globalmessage.yCoordinate > 509) {
+                sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: 0, yDelta: 511 - message.yCoordinate});
+            }
+            else {
+                sendMessage({ cmd: 'fMove', cId: globalmessage.cId, xDelta: 0, yDelta: 2});
+            }
+            fLookup();
+        }
+
+
+        function onFLocRD(message) { /*rightdown move, another move, add movecount later*/
+        //L : left R : right U : up D : down
+        //    writeToScreen(512-message.xCoordinate);
+        //   writeToScreen(512-message.yCoordinate);
+            sleep(50);
+            if(message.xCoordinate > 509 || message.yCoordinate > 509) /*if can't move that direction*/
+            {
+                sendMessage({ cmd: 'fMove', cId: message.cId, xDelta: Math.min(512-message.xCoordinate,2), yDelta: Math.min(512-message.yCoordinate,2)}); /*move to wall*/
+            }
+            else
+            {
+            sendMessage({ cmd: 'fMove', cId: message.cId, xDelta: 2, yDelta: 2}); /*move*/
+            }
+            fLookup();
+        }
+
+        function onFLoc(){
+            fLookup();
+        }
+
+        function fLookup() {
+            sendMessage({ cmd: 'fLookup', cId: globalcid});
+        }
+
+        function onFList(message) {
+            data = {"width": message.zone_width,"clients": {"num_client": message.clientList.length,"list_client": message.clientList},
+                        "zone_id": message.zId, "lt_x": message.zone_lt_x, "lt_y": message.zone_lt_y, "rb_x": message.zone_lt_x + message.zone_width,
+                        "rb_y": message.zone_lt_y + message.zone_height, "height": message.zone_height};
+
+            /*client 보여주기 */
+            //writeToScreen("FLIST");
+            //writeToScreen(JSON.stringify(data));
+            canvas_state.update_zone(data);
+            canvas_state.draw();
+
         }
 
         function onJAccept(message) {
@@ -59,8 +182,7 @@
             sendMessage({ cmd: 'rMsg', cIdSrc: message.cId, cIdDest: -1, rId: message.rId, msg: text });
         }
 
-        function onRBMsg(message) {
-        }
+
 
         function sendMessage(message) {
             websocket.send(JSON.stringify(message) + '\n');
@@ -73,11 +195,178 @@
             output.appendChild(pre)
         }
 
+//canvas function below this line
+function CanvasState(canvas) {
+            this.tracking_client = "";
+            this.canvas = canvas;
+            this.color_dictionary_key = [];
+            this.color_dictionary_value = [];
+            this.size = 512;
+            this.zone;
+
+            this.offset_x = 0; //modify after zone update
+            this.offset_y = 0;
+            this.multiplier = 1;
+            this.selected_zone_id = "";
+//            this.orientation = 0;
+
+            var myState = this;
+
+            //zone 대신에 data 사용
+/*            myState.offset_x = canvas.width/2 - (data.lt_x + data.rb_x)/2;
+            myState.offset_y = canvas.height/2 - (data.lt_y + data.rb_y)/2;
+            if (data.width >= data.height) {
+                myState.multiplier = canvas.width/data.width;
+                myState.orientation = 0;
+            } else {
+                myState.multiplier = canvas.height/data.height;
+                myState.orientation = 1;
+            }
+            myState.draw();
+            */
+            canvas.addEventListener("mousedown",function (e) {
+                var data = myState.zone;
+                var mouse = myState.getMouse(e);
+                var mx = mouse.x;
+                var my = mouse.y;
+                var n, c;
+                var clientlist = data.clients.list_client;
+                for (c = 0; c < data.clients.num_client; c++) {
+                    var client = clientlist[c];
+                    var new_x = Math.floor(myState.multiplier*(client.client_x + myState.offset_x - canvas.width/2) + canvas.width/2);
+                    var new_y = Math.floor(myState.multiplier*(client.client_y + myState.offset_y - canvas.height/2) + canvas.height/2);
+                    if (new_x - 4 <= mx && new_x + 4 >= mx && new_y - 4 <= my && new_y + 4 >= my && client.client_id !== myState.tracking_client) {
+                        myState.tracking_client = client.client_id;
+                        myState.draw();
+                    }
+                }
+            },true);
+}
+
+CanvasState.prototype.draw = function () {
+
+            var n, c;
+            this.clear();
+            //panel_init();
+            var zone = this.zone;
+            //update_client_panel();
+/*            if (this.orientation === 0) { //modify after zone update
+                this.draw_zone(0,(canvas.height - zone.height * this.multiplier)/2,canvas.width,zone.height*this.multiplier,zone.zone_id);
+            }
+            else {
+                this.draw_zone((canvas.width - zone.width * this.multiplier)/2,0,zone.width*this.multiplier,canvas.height,zone.zone_id);
+            } */
+
+            this.draw_zone(0,0,512,512,zone.zone_id); //modify after zone update
+            var clients = zone.clients.list_client;
+
+            for (c = 0; c < clients.length; c++) {
+                var client = clients[c];
+                var new_x = Math.floor(this.multiplier*(client.client_x + this.offset_x - canvas.width/2) + canvas.width/2);
+                var new_y = Math.floor(this.multiplier*(client.client_y + this.offset_y - canvas.height/2) + canvas.height/2);
+
+                this.draw_point (new_x, new_y, "rgb(255,0,0)");
+                if (this.tracking_client === client.client_id) {
+                    this.draw_client_id (client.client_id, new_x, new_y, Math.floor(client.client_x), Math.floor(client.client_y));
+                }
+            }
+}
+CanvasState.prototype.draw_zone = function (x, y, w, h, id) {
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext("2d");
+                var index = this.color_dictionary_key.indexOf(id);
+
+                if (index >= 0) {
+
+                    ctx.fillStyle = this.color_dictionary_value[index];
+                    ctx.fillRect(x,y,w,h);
+                    ctx.strokeRect(x,y,w,h);
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.font = "10pt arial normal";
+                    ctx.textAlign = "center";
+                    ctx.fillText(id, x+w/2, y+h/2);
+                }
+            }
+        }
+
+        CanvasState.prototype.draw_point = function (x, y, color) {
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext('2d');
+                ctx.fillStyle = color;
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            }
+        }
+CanvasState.prototype.getMouse = function (e) {
+            var element = this.canvas;
+            var offsetX = 0, offsetY = 0, mx, my;
+
+            if (element.offsetParent !== undefined) {
+                do {
+                    offsetX += element.offsetLeft;
+                    offsetY += element.offsetTop;
+                } while ((element = element.offsetParent));
+            }
+
+            mx = e.pageX - offsetX;
+            my = e.pageY - offsetY;
+
+            return {x: mx, y: my};
+        }
+
+CanvasState.prototype.draw_client_id = function (id, pos_x, pos_y, x, y) {
+
+            if (this.canvas.getContext) {
+                var ctx = this.canvas.getContext("2d");
+                ctx.font = "10pt arial normal";
+                ctx.fillStyle = "rgb(255, 0, 0)";
+
+                if (pos_x < this.canvas.width/2) {
+                    ctx.textAlign = "left";
+                    ctx.fillText("id : " + id + ", pos : (" + x + ", " + y + ")", pos_x + 4, pos_y + 4);
+                } else {
+                    ctx.textAlign = "right";
+                    ctx.fillText("id : " + id + ", pos : (" + x + ", " + y + ")", pos_x - 4, pos_y + 4);
+                }
+            }
+        }
+CanvasState.prototype.clear = function () {
+            if (this.canvas.getContext) {
+                var ctx = canvas.getContext("2d");
+                ctx.clearRect(0,0,this.canvas.width, canvas.height);
+            }
+        }
+
+CanvasState.prototype.update_zone = function (zone) {
+            this.zone = zone;
+                if (this.color_dictionary_key.indexOf(zone.zone_id) < 0) {
+
+                    var r = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var g = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+                    var b = Math.floor((Math.random() + 1.5) / 2.5 * 255.0);
+
+                    this.color_dictionary_key.push(zone.zone_id);
+                    this.color_dictionary_value.push("rgb(" + r + "," + g + "," + b + ")");
+                }
+
+            }
         window.addEventListener("load", init, false);
     </script>
 </head>
 <body>
-<h2>HSHAMMOG WebSocket Test</h2>
-<div id="output"></div>
+<div class="container">
+      <div class="page-header">
+        <h2>HSHAMMOG WebSocket Test</h2>
+      </div>
+      <div id="output"></div>
+      <div class="row">
+        <div class="col-md-7" align="center">
+          <canvas id="canvas" width="512" height="512"></canvas>
+        </div>
+          <button class = "pos_left" onclick="onFLocL()">LEFT</button>
+          <button class = "pos_right" onclick="onFLocR()">RIGHT</button>
+          <button class = "pos_up" onclick="onFLocU()">UP</button>
+          <button class = "pos_down" onclick="onFLocD()">DOWN</button>
+      </div>
+    </div>
 </body>
 </html>
