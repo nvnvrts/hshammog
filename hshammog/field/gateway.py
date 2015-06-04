@@ -240,6 +240,9 @@ class Gateway(AbstractServer):
         message = MessageHelper.load_message(data)
         message.timestamp = client.last_received
 
+        print "#############################################"
+        print message
+
         # invoke client message handler
         self.client_handlers[message.cmd](client, message)
 

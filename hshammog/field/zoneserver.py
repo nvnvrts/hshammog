@@ -48,9 +48,10 @@ class ZoneServer(AbstractServer):
         logger.info('zone server %s initialized.' % self.id)
 
     # create a new zone
-    def create_zone(self, lt_x, lt_y, rb_x, rb_y, max_mem, border, global_size, sid):
+    def create_zone(self, lt_x, lt_y, rb_x, rb_y, sid, parent_id=""):
         #zone = Zone(0, 0, 511, 511, 5, 4, 512, self.id)
-        zone = Zone(lt_x, lt_y, rb_x, rb_y, max_mem, border, global_size, sid)
+        zone = Zone(lt_x, lt_y, rb_x, rb_y, cfg.client_per_zone, cfg.zone_border_width, 512, sid)
+        zone.parent_zone = parent_id
         self.zones[zone.get_id()] = zone
 
         # create a new node for the zone
@@ -69,6 +70,8 @@ class ZoneServer(AbstractServer):
         
         del self.zones[zone.get_id()]
         self.zk_client.delete(path=self.zk_zone_zones_path + zone.get_id())
+
+        self.update_zk_node_data()
 
     # update zone data
     def update_zone(self, zone):
@@ -170,7 +173,7 @@ class ZoneServer(AbstractServer):
         width = int(message.width)
         height = int(message.height)
 
-        self.create_zone(lt_x, lt_y, lt_x + width, lt_y + height, 5, 4, 512, self.id)
+        self.create_zone(lt_x, lt_y, lt_x + width, lt_y + height, self.id)
         
 
     # on_mq_z_vsplit: TODO
@@ -182,15 +185,22 @@ class ZoneServer(AbstractServer):
         rb_y1 = (zone.grid['rb_y'] + zone.grid['lt_y'])/2
         lt_y2 = rb_y1 + 1
 
-        self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
-                     zone.grid['rb_x'], rb_y1,
-                     zone.max_members, zone.grid['border_width'],
-                     zone.grid['global_size'], self.id)
+        zone1 = self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
+                     zone.grid['rb_x'], rb_y1, self.id, zId)
+        zone2 = self.create_zone(zone.grid['lt_x'], lt_y2,
+                     zone.grid['rb_x'], zone.grid['rb_y'], self.id, zId)
 
-        self.create_zone(zone.grid['lt_x'], lt_y2,
-                     zone.grid['rb_x'], zone.grid['rb_y'],
-                     zone.max_members, zone.grid['border_width'],
-                     zone.grid['global_size'], self.id)
+        # client move
+        for member in zone.get_all_members():
+            zone1.add_member(member["client_id"], member["client_x"], member["client_y"])
+            zone2.add_member(member["client_id"], member["client_x"], member["client_y"])
+            
+        self.update_zone(zone1)
+        self.update_zone(zone2)
+
+        self.zones[zone1.get_id()] = zone1
+        self.zones[zone2.get_id()] = zone2
+
         self.delete_zone(zone)
 
     # on_mq_z_hsplit: TODO
@@ -202,14 +212,22 @@ class ZoneServer(AbstractServer):
         rb_x1 = (zone.grid['rb_x'] + zone.grid['lt_x'])/2
         lt_x2 = rb_x1 + 1
 
-        self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
-                     rb_x1, zone.grid['rb_y'],
-                     zone.max_members, zone.grid['border_width'],
-                     zone.grid['global_size'], self.id)
-        self.create_zone(lt_x2, self.grid['lt_y'],
-                     zone.grid['rb_x'], zone.grid['rb_y'],
-                     zone.max_members, zone.grid['border_width'],
-                     zone.grid['global_size'], self.id)
+        zone1 = self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
+                     rb_x1, zone.grid['rb_y'], self.id, zId)
+        zone2 = self.create_zone(lt_x2, zone.grid['lt_y'],
+                     zone.grid['rb_x'], zone.grid['rb_y'], self.id, zId)
+
+        # client move
+        for member in zone.get_all_members():
+            zone1.add_member(member["client_id"], member["client_x"], member["client_y"])
+            zone2.add_member(member["client_id"], member["client_x"], member["client_y"])
+            
+        self.update_zone(zone1)
+        self.update_zone(zone2)
+
+        self.zones[zone1.get_id()] = zone1
+        self.zones[zone2.get_id()] = zone2
+
         self.delete_zone(zone)
 
     # on_mq_z_destroy: TODO
@@ -230,8 +248,8 @@ class ZoneServer(AbstractServer):
         rb_x = max(zone1.grid['rb_x'], zone2.grid['rb_x'])
         rb_y = max(zone1.grid['rb_y'], zone2.grid['rb_y'])
 
-        zone = self.create_zone(lt_x, lt_y, rb_x, rb_y, 
-                     5, 4, 511, self.id)
+        # wj TODO parent_id ???
+        zone = self.create_zone(lt_x, lt_y, rb_x, rb_y, self.id)
 
         self.delete_zone(zone1)
         self.delete_zone(zone2)
@@ -247,7 +265,8 @@ class ZoneServer(AbstractServer):
         for zid, zone in self.zones.iteritems():
             zone_data = {
                 'zone_id': zid,
-                'num_client': zone.count()
+                'num_client': zone.count(),
+                'parent_zone': zone.parent_zone,
             }
 
             data['list_zone'].append(zone_data)
@@ -282,7 +301,7 @@ class ZoneServer(AbstractServer):
             # register monitoring
             self.add_timed_call(self.update_zk_node_data, 5)
 
-            zone = self.create_zone(0, 0, 511, 511, 5, 4, 512, self.id)
+            #zone = self.create_zone(0, 0, 511, 511, self.id)
 
             AbstractServer.run(self)
 

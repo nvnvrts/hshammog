@@ -98,6 +98,8 @@ class Zone:
         self.handover_buffer = {}
         self.server_id = server_id
 
+        self.parent_zone = ""
+
         logger.info('zone %s created' % self.id)
 
     def __del__(self):
@@ -165,6 +167,9 @@ class Zone:
         for member_id, value in self.members.iteritems():
             func(member_id, value)
 
+    def update_parent(self, parent_id):
+        self.parent_zone = parent_id
+
     def dumps(self):
         zone_obj = {
             'zone_id': self.id,
@@ -178,7 +183,8 @@ class Zone:
                 'num_client': len(self.members),
                 'list_client': []
             },
-            'server_id': self.server_id
+            'server_id': self.server_id,
+            'parent_zone': self.parent_zone
         }
 
         for mid, member in self.members.iteritems():

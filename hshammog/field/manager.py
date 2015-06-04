@@ -18,4 +18,5 @@ def run(server_mode):
                    cfg.mq_inport, cfg.zk_servers[0], cfg.zk_path).run()
     elif server_mode == 'monitor':
         from field.monitor import Monitor
-        Monitor(cfg.mon_port, cfg.zk_servers[0], cfg.zk_path).run()
+        Monitor(cfg.mon_port, cfg.mq_servers[0], cfg.mq_outport,
+                cfg.mq_inport, cfg.zk_servers[0], cfg.zk_path).run()
