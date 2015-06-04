@@ -7,7 +7,8 @@ class Message:
     ''' Message '''
 
     def __init__(self, cmd=None, cid=None, ciddest=None, nmaxroom=None,
-                 msg=None, rid=None, roomlist=None, timestamp=-1):
+                 msg=None, rid=None, roomlist=None, clientlist=None,
+                 timestamp=-1):
         self.cmd = cmd
         self.cid = cid
         self.ciddest = ciddest
@@ -15,6 +16,7 @@ class Message:
         self.msg = msg
         self.rid = rid
         self.roomlist = roomlist
+        self.clientlist = clientlist
         self.timestamp = timestamp
 
     def dumps(self):
@@ -52,6 +54,13 @@ class MessageHelper(object):
         'rJReject':
         (lambda message: {'cmd': 'rJReject', 'cId': message.cid,
                           'rId': message.rid, 'msg': message.msg}),
+        'rMLookup':
+        (lambda message: {'cmd': 'rMLookup', 'cId': message.cid,
+                          'rId': message.rid}),
+        'rMList':
+        (lambda message: {'cmd': 'rMList', 'cId': message.cid,
+                          'rId': message.rid,
+                          'clientList': message.clientlist}),
         'rMsg':
         (lambda message: {'cmd': 'rMsg', 'cIdSrc': message.cid,
                           'cIdDest': message.ciddest, 'rId': message.rid,
@@ -100,6 +109,13 @@ class MessageHelper(object):
         'rJReject':
         (lambda message: Message(cmd='rJReject', cid=message['cId'],
                                  rid=message['rId'], msg=message['msg'])),
+        'rMLookup':
+        (lambda message: Message(cmd='rMLookup', cid=message['cId'],
+                                 rid=message['rId'])),
+        'rMList':
+        (lambda message: Message(cmd='rMList', cid=message['cId'],
+                                 rid=message['rId'],
+                                 clientlist=message['clientList'])),
         'rMsg':
         (lambda message: Message(cmd='rMsg', cid=message['cIdSrc'],
                                  ciddest=message['cIdDest'],

@@ -32,6 +32,7 @@ class RoomServer(AbstractServer):
         # mq message handler
         self.mq_handlers = {
             'rJoin': self.on_mq_r_join,
+            'rMLookup': self.on_mq_r_m_lookup,
             'rMsg': self.on_mq_r_msg,
             'rExit': self.on_mq_r_exit,
             'rExitAll': self.on_mq_r_exit_all,
@@ -157,6 +158,21 @@ class RoomServer(AbstractServer):
                                          rid=message.rid, msg=reason,
                                          timestamp=message.timestamp))
 
+    def on_mq_r_m_lookup(self, server_id, message):
+        room = self.rooms.get(message.rid)
+        if room:
+            self.publish_message(server_id,
+                                 Message(cmd='rMList',
+                                         cid=message.cid,
+                                         rid=message.rid,
+                                         clientlist=room.get_all_member(),
+                                         timestamp=message.timestamp))
+        else:
+            self.publish_message(server_id,
+                                 Message(cmd='rError', cid=message.cid,
+                                         msg='Not a member of the room',
+                                         timestamp=message.timestamp))
+
     def on_mq_r_msg(self, _, message):
         room = self.rooms.get(message.rid)
         if room:
@@ -194,7 +210,8 @@ class RoomServer(AbstractServer):
             room = self.rooms.get(rid)
             if room and room.get_member(message.cid):
                 room.leave(message.cid)
-                if room.is_empty():
+                if room.is_empty() \
+                   and len(self.rooms) > cfg.initial_room_count:
                     self.delete_room(room)
                 else:
                     self.update_room(room)

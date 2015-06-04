@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>HSHAMMOG WebSocket RoomLobby Test</title>
+
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+    <style>
+    .progress {
+      margin-bottom: 0px;
+    }
+    </style>
+
+    <!-- jQuery library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+
+    <!-- Latest compiled JavaScript -->
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+
+    <!-- Mustache HTML rendering Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.8.1/mustache.min.js"></script>
+
+    <script id="message-bar-template" type="text/html">
+        <input type="text" class="form-control" placeholder="type your message here" id="message-input">
+        <span class="input-group-btn">
+            <button class="btn btn-default" type="button" id="message-submit">Send</button>
+            <button class="btn btn-default" type="button" id="leave-room">Leave Room</button>
+        </span>
+    </script>
+
+    <script id="room-entry-template" type="text/html">
+        <a href="#" id={{room_id}} class="list-group-item">
+            <span class="badge">{{num_client}}</span>
+            {{room_id}}
+        </a>
+    </script>
+
+    <script id="client-entry-template" type="text/html">
+        <li class="list-group-item">{{client_id}}</li>
+    </script>
+
+    <script id="message-entry-template" type="text/html">
+        <li class="list-group-item">{{msg}}</li>
+    </script>
+
+    <script language="javascript" type="text/javascript">
+        var url = "ws://localhost:8080/";
+
+        var client_id;
+        var room_id;
+        var state;
+
+        var message_bar_template;
+        var room_entry_template;
+        var client_entry_template;
+        var message_entry_template;
+
+        var output_panel;
+        var roomlist_panel;
+        var clientlist_panel;
+        var message_prompt;
+
+        function init() {
+            room_entry_template = document.getElementById("room-entry-template").innerHTML;
+            client_entry_template = document.getElementById("client-entry-template").innerHTML;
+            message_entry_template = document.getElementById("message-entry-template").innerHTML;
+            message_bar_template = document.getElementById("message-bar-template").innerHTML;
+
+            output_panel = document.getElementById("output-panel");
+            roomlist_panel = document.getElementById("roomlist-panel");
+            roomlist_panel.addEventListener("mousedown", onRoomListClick);
+            clientlist_panel = document.getElementById("clientlist-panel");
+            message_prompt = document.getElementById("message-prompt");
+
+            state = "init";
+
+            connect();
+        }
+
+        function connect() {
+            websocket = new WebSocket(url);
+
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = onMessage;
+            websocket.onerror = onError;
+
+            handlers = {
+                sAccept: onSAccept,
+                sReject: onSReject,
+                rList: onRList,
+                rJAccept: onRJAccept,
+                rJReject: onRJReject,
+                rMList: onRMList,
+                rBMsg: onRBMsg,
+                rBye: onRBye
+            };
+        }
+
+        function onOpen(event) {
+            writeToScreen("CONNECTED");
+            sendMessage({ cmd: 'sConnect' });
+        }
+
+        function onClose(event) {
+        }
+
+        function onMessage(event) {
+            writeToScreen(event.data);
+
+            var message = JSON.parse(event.data);
+            handlers[message.cmd](message);
+        }
+
+        function onError(event) {
+        }
+
+        function onSAccept(message) {
+            state = "sAccepted";
+
+            writeMessage("Service Connected: client_id(" + message.cId + ")");
+
+            client_id = message.cId;
+            sendMessage({ cmd: "rLookup", cId: message.cId, nMaxRoom: 6 });
+        }
+
+        function onSReject(message) {
+            state = "sRejected";
+            writeMessage("Connection to Service Rejected");
+
+            websocket.close();
+        }
+
+        function onRList(message) {
+            state = "rListed";
+
+            var r;
+
+            list = message.roomList;
+
+            for (r = 0; r < list.length; r++) {
+                var room = list[r];
+                writeToRoomList(room.rId, room.num_client);
+            }
+        }
+
+        function onRJAccept(message) {
+            state = "rJAccepted";
+
+            writeMessage("joined " + room_id);
+
+            clearRoomList();
+            sendMessage({cmd: "rMLookup", rId:room_id, cId:client_id});
+        }
+
+        function onRJReject(message) {
+            state = "rJRejected";
+
+            writeMessage("could not join " + room_id);
+            room_id = "";
+
+            clearRoomList();
+            sendMessage({cmd: "rLookup", cId:client_id, nMaxRoom: 6});
+        }
+
+        function onRMList(message) {
+            state = "rMListed";
+
+            var c;
+
+            list = message.clientList;
+
+            for (c = 0; c < list.length; c++) {
+                writeToClientList(list[c]);
+            }
+
+            var msg_bar = document.createElement("div");
+            msg_bar.className="input-group";
+            msg_bar.innerHTML=message_bar_template;
+
+            clientlist_panel.appendChild(msg_bar);
+
+            document.getElementById("message-submit").addEventListener("click", onMessageSend);
+            document.getElementById("leave-room").addEventListener("click", onRoomLeave);
+        }
+
+        function onRBMsg(message) {
+            if (room_id === message.rId) {
+                writeMessage("["+message.cIdSrc+"] : " + message.msg);
+                clearClientList();
+                sendMessage({cmd: "rMLookup", cId:client_id, rId:room_id});
+            }
+        }
+
+        function onRBye(message) {
+            room_id = "";
+            writeMessage("left " + message.rId);
+            clearClientList();
+            sendMessage({cmd: "rLookup", cId:client_id, rId: room_id, nMaxRoom: 6});
+        }
+
+        function sendMessage(message) {
+            websocket.send(JSON.stringify(message) + '\n');
+        }
+
+        function clearClientList() {
+            while(clientlist_panel.firstChild) {
+                clientlist_panel.removeChild(clientlist_panel.firstChild);
+            }
+        }
+
+        function writeToClientList(client_id) {
+          var client = {
+              client_id: client_id
+          };
+
+          var output = Mustache.render(client_entry_template, client);
+          clientlist_panel.insertAdjacentHTML("beforeend", output);
+        }
+
+        function clearRoomList() {
+          while(roomlist_panel.firstChild) {
+              roomlist_panel.removeChild(roomlist_panel.firstChild);
+          }
+        }
+
+        function writeToRoomList(room_id, num_client) {
+          var room = {
+              room_id: room_id,
+              num_client: num_client
+          };
+
+          var output = Mustache.render(room_entry_template, room);
+          roomlist_panel.insertAdjacentHTML("beforeend", output);
+        }
+
+        function onRoomListClick(event) {
+          room_id = event.target.id;
+
+          if (room_id !== "") {
+            state = "rSelected";
+            sendMessage({cmd: "rJoin", cId: client_id, rId:room_id});
+          } else {
+            room_id = "";
+          }
+        }
+
+        function onMessageSend(event) {
+            msg = document.getElementById("message-input").value;
+            sendMessage({cmd: "rMsg", cIdSrc: client_id, rId:room_id,
+                         cIdDest: "", msg: msg});
+        }
+
+        function onRoomLeave(event) {
+            sendMessage({cmd: "rExit", cId: client_id, rId: room_id});
+        }
+
+        function writeMessage(msg) {
+          var msg = {
+              msg: msg
+          };
+
+          var output = Mustache.render(message_entry_template, msg);
+          message_prompt.insertAdjacentHTML("beforeend", output);
+        }
+
+        function writeToScreen(message) {
+            output_panel.innerHTML = message;
+        }
+
+        window.addEventListener("load", init, false);
+    </script>
+</head>
+<body>
+<div class="container">
+      <div class="page-header">
+        <h2>HSHAMMOG WebSocket RoomLobby Test</h2>
+      </div>
+      <div id="output-panel" class="alert alert-warning"></div>
+      <div id="control-panel">
+          <div class="list-group" id="roomlist-panel"></div>
+          <ul class="list-group" id="clientlist-panel"></ul>
+      </div>
+      <div id="message-panel">
+        <ul class="list-group" id="message-prompt"></ul>
+      </div>
+    </div>
+</body>
+</html>

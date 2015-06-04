@@ -39,6 +39,7 @@ class Gateway(AbstractServer):
         self.mq_handlers = {
             'rJAccept': self.on_mq_r_j_accept,
             'rJReject': self.on_mq_r_j_reject,
+            'rMList': self.on_mq_r_m_list,
             'rBMsg': self.on_mq_r_b_msg,
             'rBye': self.on_mq_r_bye,
         }
@@ -48,6 +49,7 @@ class Gateway(AbstractServer):
             'sConnect': self.on_client_s_connect,
             'rLookup': self.on_client_r_lookup,
             'rJoin': self.on_client_r_join,
+            'rMLookup': self.on_client_r_m_lookup,
             'rMsg': self.on_client_r_msg,
             'rExit': self.on_client_r_exit,
             'sExit': self.on_client_s_exit,
@@ -131,6 +133,15 @@ class Gateway(AbstractServer):
 
         if client:
             self.send_message_to_client(client, message, message.timestamp)
+        else:
+            pass
+
+    def on_mq_r_m_list(self, message):
+        client = self.clients.get(message.cid)
+
+        if client:
+            self.send_message_to_client(client, message, message.timestamp)
+
         else:
             pass
 
@@ -254,7 +265,7 @@ class Gateway(AbstractServer):
         if self.validate_client(client, message):
             client = self.clients[message.cid]
 
-            room_list = {}
+            room_list = []
 
             # gather room list from zk node data
             for room_server in self.get_zk_roomservers():
@@ -265,7 +276,11 @@ class Gateway(AbstractServer):
                     for rid, values in json.loads(data)['rooms'].iteritems():
                         if values['count'] < values['max'] and \
                            len(room_list) < message.nmaxroom:
-                            room_list[rid] = values['count']
+                            room = {
+                                'rId': rid,
+                                'num_client': values['count']
+                            }
+                            room_list.append(room)
                 except NoNodeError:
                     pass
 
@@ -309,6 +324,18 @@ class Gateway(AbstractServer):
                     return
 
                 self.pub_message_to_mq(server_id, message)
+
+    def on_client_r_m_lookup(self, client, message):
+        if self.validate_client(client, message):
+            client = self.clients[message.cid]
+            try:
+                server_id = self.get_zk_roomserver(message.rid)
+                self.pub_message_to_mq(server_id, message)
+            except RoomServerNotFoundError as e:
+                self.send_message_to_client(client, Message(cmd='rBye',
+                                                            cid=message.cid,
+                                                            rid=message.rid),
+                                            message.timestamp)
 
     def on_client_r_msg(self, client, message):
         if self.validate_client(client, message):
