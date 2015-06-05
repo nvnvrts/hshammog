@@ -37,11 +37,10 @@ class AbstractServer():
         self.zk_path = zk_path
 
         # cached lists
-        self.gateways = []
-        self.roomservers = []
-
-        # periodic calls
-        self.timed_calls = []
+        self.gateway_ids = []
+        self.roomserver_ids = []
+        self.zoneserver_ids = []
+        self.zone_ids = []
 
     def ensure_path_zk(self, path):
         newpath = ''
@@ -91,6 +90,24 @@ class AbstractServer():
             # instead,
             self.ensure_path_zk(self.zk_room_rooms_path)
 
+            self.zk_zone_servers_path = \
+                cfg.zk_root + cfg.zk_path + cfg.zk_zone_server_path
+            # recursive ensure_path not working
+            # self.zk_client.ensure_path(self.zk_zone_servers_path)
+            self.ensure_path_zk(self.zk_zone_servers_path)
+
+            self.zk_zone_zones_path = \
+                cfg.zk_root + cfg.zk_path + cfg.zk_zone_zones_path
+            # recursive ensure_path not working
+            # self.zk_client.ensure_path(self.zk_zone_zones_path)
+            self.ensure_path_zk(self.zk_zone_zones_path)
+
+            self.zk_zone_tree_path = \
+                cfg.zk_root + cfg.zk_path + '/zone-tree'
+            # recursive ensure_path not working
+            # self.zk_client.ensure_path(self.zk_zone_tree_path)
+            self.ensure_path_zk(self.zk_zone_tree_path)
+
         except Exception as e:
             zk_success = str(e)
 
@@ -105,11 +122,11 @@ class AbstractServer():
         @self.zk_client.ChildrenWatch(self.zk_gateway_servers_path)
         def watch_gateways(gateways):
             # find out gateways changes
-            added = [x for x in gateways if x not in self.gateways]
-            removed = [x for x in self.gateways if x not in gateways]
+            added = [x for x in gateways if x not in self.gateway_ids]
+            removed = [x for x in self.gateway_ids if x not in gateways]
 
             # update list before call handlers
-            self.gateways = gateways
+            self.gateway_ids = gateways
 
             if added:
                 self.on_zk_gateway_added(added)
@@ -118,7 +135,7 @@ class AbstractServer():
                 self.on_zk_gateway_removed(removed)
 
     def get_zk_gateways(self):
-        return self.gateways
+        return self.gateway_ids
 
     def on_zk_gateway_added(self, gateways):
         pass
@@ -130,8 +147,8 @@ class AbstractServer():
         @self.zk_client.ChildrenWatch(self.zk_room_servers_path)
         def watch_roomservers(roomservers):
             # find out roomservers changes
-            added = [x for x in roomservers if x not in self.roomservers]
-            removed = [x for x in self.roomservers if x not in roomservers]
+            added = [x for x in roomservers if x not in self.roomserver_ids]
+            removed = [x for x in self.roomserver_ids if x not in roomservers]
 
             # update list before call handlers
             self.roomservers = roomservers
@@ -143,12 +160,62 @@ class AbstractServer():
                 self.on_zk_roomserver_removed(removed)
 
     def get_zk_roomservers(self):
-        return self.roomservers
+        return self.roomserver_ids
 
     def on_zk_roomserver_added(self, roomservers):
         pass
 
     def on_zk_roomserver_removed(self, roomservers):
+        pass
+
+    def watch_zk_zoneservers(self):
+        @self.zk_client.ChildrenWatch(self.zk_zone_servers_path)
+        def watch_zoneservers(zoneservers):
+            # find out zoneservers changes
+            added = [x for x in zoneservers if x not in self.zoneserver_ids]
+            removed = [x for x in self.zoneserver_ids if x not in zoneservers]
+
+            # update list before call handlers
+            self.zoneservers_ids = zoneservers
+
+            if added:
+                self.on_zk_zoneserver_added(added)
+
+            if removed:
+                self.on_zk_zoneserver_removed(removed)
+
+    def get_zk_zoneservers(self):
+        return self.zoneservers_ids
+
+    def on_zk_zoneserver_added(self, zoneservers):
+        pass
+
+    def on_zk_zoneserver_removed(self, zoneservers):
+        pass
+
+    def watch_zk_zones(self):
+        @self.zk_client.ChildrenWatch(self.zk_zone_zones_path)
+        def watch_zoneservers(zones):
+            # find out zones changes
+            added = [x for x in zones if x not in self.zone_ids]
+            removed = [x for x in self.zone_ids if x not in zones]
+
+            # update list before call handlers
+            self.zone_ids = zones
+
+            if added:
+                self.on_zk_zone_added(added)
+
+            if removed:
+                self.on_zk_zone_removed(removed)
+
+    def get_zk_zones(self):
+        return self.zone_ids
+
+    def on_zk_zone_added(self, zones):
+        pass
+
+    def on_zk_zone_removed(self, zones):
         pass
 
     def listen_tcp_client(self, port):
@@ -182,7 +249,7 @@ class AbstractServer():
         self.mq_sub = txzmq.ZmqSubConnection(self.factory, mq_sub_endpoint)
 
         for tag in args:
-            self.mq_sub.subscribe(tag)
+            self.mq_sub.subscribe(tag.encode('ascii', 'ignore'))
 
             def on_sub(data, tag):
                 self.on_mq_data_received(tag, data)

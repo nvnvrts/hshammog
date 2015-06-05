@@ -1,5 +1,6 @@
 __all__ = ['Error', 'ServerError', 'MessageParseError', 'GatewayError',
-           'RoomServerError', 'RoomServerNotFoundError']
+           'RoomServerError', 'RoomServerNotFoundError', 'ZoneServerError',
+           'ZoneServerNotFoundError', 'MonitorError']
 
 
 class Error(Exception):
@@ -39,3 +40,23 @@ class RoomServerError(ServerError):
 class RoomServerNotFoundError(ServerError):
     def __init__(self, rid):
         self.rid = rid
+
+
+class ZoneServerError(ServerError):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
+
+
+class ZoneServerNotFoundError(ServerError):
+    def __init__(self, sid):
+        self.sid = sid
+
+class MonitorError(ServerError):
+    def __init__(self, msg):
+        self.msg= msg
+
+    def __str__(self):
+        return repr(self.msg)
