@@ -102,6 +102,12 @@ class AbstractServer():
             # self.zk_client.ensure_path(self.zk_zone_zones_path)
             self.ensure_path_zk(self.zk_zone_zones_path)
 
+            self.zk_zone_tree_path = \
+                cfg.zk_root + cfg.zk_path + '/zone-tree'
+            # recursive ensure_path not working
+            # self.zk_client.ensure_path(self.zk_zone_tree_path)
+            self.ensure_path_zk(self.zk_zone_tree_path)
+
         except Exception as e:
             zk_success = str(e)
 
@@ -243,7 +249,7 @@ class AbstractServer():
         self.mq_sub = txzmq.ZmqSubConnection(self.factory, mq_sub_endpoint)
 
         for tag in args:
-            self.mq_sub.subscribe(tag)
+            self.mq_sub.subscribe(tag.encode('ascii', 'ignore'))
 
             def on_sub(data, tag):
                 self.on_mq_data_received(tag, data)

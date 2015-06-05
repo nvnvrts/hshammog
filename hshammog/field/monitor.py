@@ -8,14 +8,17 @@ import random
 # hshammog
 from core import logger
 from conf import cfg
+from core.exceptions import *
 from core.protocol import *
 from core.field import *
 from core.server import AbstractServer
 
+
 class Monitor(AbstractServer):
     ''' Monitor '''
 
-    def __init__(self, client_websocket_port, mq_host, mq_pub_port, mq_sub_port, zk_hosts, zk_path):
+    def __init__(self, client_websocket_port, mq_host,
+                 mq_pub_port, mq_sub_port, zk_hosts, zk_path):
         AbstractServer.__init__(self, 'monitor', zk_hosts, zk_path)
 
         logger.info('monitor %s initializing...' % self.id)
@@ -27,7 +30,6 @@ class Monitor(AbstractServer):
         self.mq_pub_port = mq_pub_port
         self.mq_sub_port = mq_sub_port
 
-
         # list of clients to broadcast(push)
         self.clients = {}
 
@@ -37,7 +39,7 @@ class Monitor(AbstractServer):
         self.zoneservers = {}
 
         # zone tree
-        self.zone_tree = {}
+        self.destroying_zones = []
 
         logger.info('monitor %s initialized.' % self.id)
 
@@ -71,12 +73,6 @@ class Monitor(AbstractServer):
     def on_zk_gateway_data_changed(self, gateway, data):
         parsed_data = json.loads(data)
 
-        logger.info('%s: cpu_usage(%s), mem_usage(%f)' %
-                    (gateway, parsed_data['cpu_usage'],
-                     parsed_data['mem_usage']))
-        logger.info('%s: num_client(%d)' %
-                    (gateway, parsed_data['num_client']))
-
         self.gateways[gateway] = parsed_data
 
     def on_zk_zoneserver_added(self, zoneservers):
@@ -100,10 +96,6 @@ class Monitor(AbstractServer):
     def on_zk_zoneserver_data_changed(self, zoneserver, data):
         parsed_data = json.loads(data)
 
-        logger.info('%s: cpu_usage(%s), mem_usage(%f)' %
-                    (zoneserver, parsed_data['cpu_usage'],
-                     parsed_data['mem_usage']))
-
         self.zoneservers[zoneserver] = parsed_data
 
     def on_zk_zone_added(self, zones):
@@ -112,7 +104,6 @@ class Monitor(AbstractServer):
         # add data watcher to new zones
         for zone in zones:
             @self.zk_client.DataWatch(self.zk_zone_zones_path + zone)
-
             def watch_zone(data, stat):
                 logger.debug(data)
 
@@ -126,30 +117,14 @@ class Monitor(AbstractServer):
         for zone in zones:
             if zone in self.zones.keys():
                 del self.zones[zone]
+            if zone in self.destroying_zones:
+                self.destroying_zones.remove(zone)
 
     def on_zk_zone_data_changed(self, zone, data):
         parsed_data = json.loads(data)
 
-        logger.info('%s: num_client(%d)' %
-                    (zone, parsed_data['clients']['num_client']))
-
         self.zones[zone] = parsed_data
-        '''
-        if (len(self.zone_tree) == 0):
-            self.zone_tree[1] = self.zones[zone]['zone_id']
-        else:
-            parent_num = 0
-            for num in self.zone_tree.keys():
-                if self.zone_tree[num] == self.zones[zone]['parent_zone']:
-                    parent_num = num
-            if parent_num == 0:
-                return
-        
-            if ((parent_num * 2) in self.zone_tree.keys()):
-                self.zone_tree[parent_num * 2 + 1] = self.zones[zone]["zone_id"]
-            else:
-                self.zone_tree[parent_num * 2] = self.zones[zone]["zone_id"]
-        '''
+
     def update_client(self):
         data = {
             'gateway': {
@@ -199,43 +174,77 @@ class Monitor(AbstractServer):
             data['zone']['list_zone'].append(z_obj)
 
         dump = json.dumps(data)
-        logger.debug('updating clients with %s' % dump)
+        #logger.debug('updating clients with %s' % dump)
 
         for client in self.clients.keys():
             self.clients[client].send_data(dump)
 
-
-    # wj added
     def update_zone(self):
-        max_member = cfg.client_per_zone
-        min_member = cfg.min_client_per_zone
+        if len(self.zones) == 0 and len(self.zoneservers) > 0:
+            zs = random.choice(self.zoneservers.keys())
+            self.publish_message(zs,
+                                 Message(cmd='zAdd', width=512, height=512,
+                                         x=0, y=0))
+        elif len(self.zones) > 0 and len(self.destroying_zones) == 0:
+            max_member = cfg.max_client_per_zone
+            min_member = cfg.min_client_per_zone
 
-        for zs, zs_data in self.zoneservers.iteritems():
-            list_zone = zs_data['list_zone']
+            data, stat = self.zk_client.get(self.zk_zone_tree_path)
+            tree_data = json.loads(data)
 
-            for zone_data in list_zone:
-                zone_id = zone_data['zone_id']
-                num_client = zone_data['num_client']
+            def has_left(idx):
+                return (str(idx*2) in tree_data.keys())
+            def has_right(idx):
+                return (str(idx*2+1) in tree_data.keys())
+            def is_leaf(idx):
+                return not (has_left(idx) or has_right(idx))
+            def traverse(idx):
+                zone = self.zones.get(tree_data[str(idx)])
 
-                # wj : check for split
-                if (num_client > max_member):
-                #if 1==1:
-                    logger.info('zone splited!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    if random.randint(1,2) == 1:
-                        self.publish_message(str(zs),
-                                 Message(cmd='zVSplit', zid1=str(zone_id)))
+                # split
+                if zone is not None and is_leaf(idx):
+                    if zone['clients']['num_client'] > max_member:
+                        direction = random.choice(['zVSplit', 'zHSplit'])
+                        self.publish_message(zone['server_id'],
+                                             Message(cmd=direction,
+                                                     zid1=zone['zone_id']))
+                        self.destroying_zones.append(zone['zone_id'])
+                        logger.info('Split %s' % zone['zone_id'])
+
+                        return True
+                    return False
+                # merge
+                elif zone is None and has_left(idx) and is_leaf(idx*2) and \
+                     has_right(idx) and is_leaf(idx*2+1):
+                    l_zone = self.zones.get(tree_data[str(idx*2)])
+                    r_zone = self.zones.get(tree_data[str(idx*2+1)])
+
+                    if l_zone['clients']['num_client'] < min_member and \
+                       r_zone['clients']['num_client'] < min_member:
+                        self.publish_message(l_zone['server_id'],
+                                             Message(cmd='zMerge',
+                                                     zid1=l_zone['zone_id'],
+                                                     zid2=r_zone['zone_id']))
+                        self.destroying_zones.append(l_zone['zone_id'])
+                        self.destroying_zones.append(r_zone['zone_id'])
+                        logger.info('Merge %s and %s' % (l_zone['zone_id'],
+                                                         r_zone['zone_id']))
+                        return True
                     else:
-                        self.publish_message(str(zs),
-                                 Message(cmd='zHSplit', zid1=str(zone_id)))
+                        return traverse(idx*2) or traverse(idx*2+1)
+                else:
+                    if not traverse(idx*2):
+                        return traverse(idx*2+1)
+                    else:
+                        return True
 
-                    
- 
+            traverse(1)
+
     def publish_message(self, tag, message):
         data = '%s|%s|%d' % (self.id, message.dumps(), message.timestamp)
-        logger.debug('PUB %s %s %d' % (tag, data, message.timestamp))
+        logger.debug('PUB %s %s %d' % (str(tag), data, message.timestamp))
 
-        self.publish_mq(tag, data)
-       
+        self.publish_mq(str(tag), str(data))
 
     def run(self):
         try:
@@ -244,7 +253,8 @@ class Monitor(AbstractServer):
             if zk_success is not None:
                 raise MonitorError(zk_success)
 
-            self.connect_mq(self.mq_host, self.mq_pub_port, self.mq_sub_port, '', self.id)
+            self.connect_mq(self.mq_host, self.mq_pub_port, self.mq_sub_port,
+                            '', self.id)
 
             self.watch_zk_gateways()
             self.watch_zk_zoneservers()
@@ -253,14 +263,7 @@ class Monitor(AbstractServer):
             self.listen_websocket_client(self.client_websocket_port)
 
             self.add_timed_call(self.update_client, 5)
-            self.add_timed_call(self.update_zone, 4)
-
-            for zs, zs_data in self.zoneservers.iteritems():
-
-                self.publish_message(str(zs),
-                                Message(cmd='zAdd', x=0, y=0, width=511, height=511))
-
-                #zone_tree[1] = zone.get_id()
+            self.add_timed_call(self.update_zone, 5)
 
             AbstractServer.run(self)
 

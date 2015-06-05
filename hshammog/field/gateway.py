@@ -240,9 +240,6 @@ class Gateway(AbstractServer):
         message = MessageHelper.load_message(data)
         message.timestamp = client.last_received
 
-        print "#############################################"
-        print message
-
         # invoke client message handler
         self.client_handlers[message.cmd](client, message)
 
@@ -283,39 +280,36 @@ class Gateway(AbstractServer):
     def on_client_f_msg(self, client, message):
         pass
 
-    # on_client_z_add: TODO
+    # on_client_z_add
     def on_client_z_add(self, client, message):
         self.pub_message_to_mq('zoneserver-allserver',
-			       Message(cmd='zAdd',
-				       x=message.x,
+                               Message(cmd='zAdd',
+                                       x=message.x,
                                        y=message.y,
                                        width=message.width,
                                        height=message.height))
-                                       
-    # on_client_z_vsplit: TODO
+
+    # on_client_z_vsplit
     def on_client_z_vsplit(self, client, message):
         self.pub_message_to_mq('zoneserver-allserver',
-                              Message(cmd='zVSplit',
-                                      zid1=message.zid1))
+                               Message(cmd='zVSplit', zid1=message.zid1))
 
-    # on_client_z_hsplit: TODO
+    # on_client_z_hsplit
     def on_client_z_hsplit(self, client, message):
         self.pub_message_to_mq('zoneserver-allserver',
-                              Message(cmd='zHSplit',
-                                      zid1=message.zid1))
+                               Message(cmd='zHSplit', zid1=message.zid1))
 
-    # on_client_z_destroy: TODO
+    # on_client_z_destroy
     def on_client_z_destroy(self, client, message):
         self.pub_message_to_mq('zoneserver-allserver',
-                              Message(cmd='zDestroy',
-                                      zid1=message.zid1))
+                               Message(cmd='zDestroy', zid1=message.zid1))
 
-    # on_client_z_merge: TODO
+    # on_client_z_merge
     def on_client_z_merge(self, client, message):
-         self.pub_message_to_mq('zoneserver-allserver',
-                              Message(cmd='zMerge',
-                                      zid1=message.zid1,
-                                      zid2=message.zid2))
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='zMerge',
+                                       zid1=message.zid1,
+                                       zid2=message.zid2))
 
     def on_client_s_exit(self, client, message):
         if self.validate_client(client, message):

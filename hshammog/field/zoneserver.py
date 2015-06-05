@@ -49,8 +49,8 @@ class ZoneServer(AbstractServer):
 
     # create a new zone
     def create_zone(self, lt_x, lt_y, rb_x, rb_y, sid, parent_id=""):
-        #zone = Zone(0, 0, 511, 511, 5, 4, 512, self.id)
-        zone = Zone(lt_x, lt_y, rb_x, rb_y, cfg.client_per_zone, cfg.zone_border_width, 512, sid)
+        zone = Zone(lt_x, lt_y, rb_x, rb_y, cfg.max_client_per_zone,
+                    cfg.zone_border_width, 512, sid)
         zone.parent_zone = parent_id
         self.zones[zone.get_id()] = zone
 
@@ -67,10 +67,8 @@ class ZoneServer(AbstractServer):
 
     # delete the zone
     def delete_zone(self, zone):
-        
         del self.zones[zone.get_id()]
         self.zk_client.delete(path=self.zk_zone_zones_path + zone.get_id())
-
         self.update_zk_node_data()
 
     # update zone data
@@ -106,33 +104,29 @@ class ZoneServer(AbstractServer):
 
     # on_mq_f_start
     def on_mq_f_start(self, server_id, message):
-        check = False
         for zone_id, zone in self.zones.iteritems():
             if zone.add_member(message.cid, message.x, message.y):
-                check = True
                 self.update_zone(zone)
 
-        if check:
-            self.publish_message(server_id,
-                                 Message(cmd='fLoc', cid=message.cid,
-                                         x=message.x, y=message.y,
-                                         timestamp=message.timestamp))
+                self.publish_message(server_id,
+                                     Message(cmd='fLoc', cid=message.cid,
+                                             x=message.x, y=message.y,
+                                             timestamp=message.timestamp))
 
-    # on_mq_f_move: TODO
+    # on_mq_f_move
     def on_mq_f_move(self, server_id, message):
-        check = False
-
         for zone_id, zone in self.zones.iteritems():
-            member = zone.update_member(message.cid, message.x, message.y)
+            member, hoff = zone.update_member(message.cid,
+                                              message.x, message.y)
             if member is not None:
                 self.update_zone(zone)
-
-                if not check:
-                    check = True
-                    self.publish_message(server_id,
-                                         Message(cmd='fLoc', cid=message.cid,
-                                                 x=member.x, y=member.y,
-                                                 timestamp=message.timestamp))
+                self.publish_message(server_id,
+                                     Message(cmd='fLoc', cid=message.cid,
+                                             x=member.x, y=member.y,
+                                             timestamp=message.timestamp))
+                if hoff:
+                    for zone_id, zone in self.zones.iteritems():
+                        zone.add_member(member.cid, member.x, member.y)
 
     # on_mq_f_lookup
     def on_mq_f_lookup(self, server_id, message):
@@ -167,17 +161,21 @@ class ZoneServer(AbstractServer):
 
     # on_mq_z_add: TODO
     def on_mq_z_add(self, server_id, message):
-
         lt_x = int(message.x)
         lt_y = int(message.y)
         width = int(message.width)
         height = int(message.height)
 
-        self.create_zone(lt_x, lt_y, lt_x + width, lt_y + height, self.id)
-        
+        new_zone = self.create_zone(lt_x, lt_y,
+                                    lt_x + width - 1, lt_y + height - 1,
+                                    self.id)
 
-    # on_mq_z_vsplit: TODO
-    def on_mq_z_vsplit(self, server_id, message):
+        # update data
+        tree_data = json.dumps({1: new_zone.get_id(), new_zone.get_id(): 1})
+        self.zk_client.set(self.zk_zone_tree_path, tree_data)
+
+    # on_mq_z_hsplit: TODO
+    def on_mq_z_hsplit(self, server_id, message):
 
         zId = message.zid1
         zone = self.zones[zId]
@@ -186,26 +184,40 @@ class ZoneServer(AbstractServer):
         lt_y2 = rb_y1 + 1
 
         zone1 = self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
-                     zone.grid['rb_x'], rb_y1, self.id, zId)
+                                 zone.grid['rb_x'], rb_y1, self.id, zId)
         zone2 = self.create_zone(zone.grid['lt_x'], lt_y2,
-                     zone.grid['rb_x'], zone.grid['rb_y'], self.id, zId)
+                                 zone.grid['rb_x'], zone.grid['rb_y'],
+                                 self.id, zId)
 
         # client move
         for member in zone.get_all_members():
-            zone1.add_member(member["client_id"], member["client_x"], member["client_y"])
-            zone2.add_member(member["client_id"], member["client_x"], member["client_y"])
-            
+            zone1.add_member(member["client_id"],
+                             member["client_x"], member["client_y"])
+            zone2.add_member(member["client_id"],
+                             member["client_x"], member["client_y"])
+
         self.update_zone(zone1)
         self.update_zone(zone2)
 
         self.zones[zone1.get_id()] = zone1
         self.zones[zone2.get_id()] = zone2
 
+        # update for merge
+        data, stat = self.zk_client.get(self.zk_zone_tree_path)
+        tree_data = json.loads(data)
+        idx = tree_data[zId]
+
+        tree_data[zone1.get_id()] = 2*idx
+        tree_data[zone2.get_id()] = 2*idx + 1
+        tree_data[str(2*idx)] = zone1.get_id()
+        tree_data[str(2*idx+1)] = zone2.get_id()
+
+        self.zk_client.set(self.zk_zone_tree_path, json.dumps(tree_data))
+
         self.delete_zone(zone)
 
-    # on_mq_z_hsplit: TODO
-    def on_mq_z_hsplit(self, server_id, message):
-        
+    # on_mq_z_vsplit
+    def on_mq_z_vsplit(self, server_id, message):
         zId = message.zid1
         zone = self.zones[zId]
 
@@ -213,31 +225,44 @@ class ZoneServer(AbstractServer):
         lt_x2 = rb_x1 + 1
 
         zone1 = self.create_zone(zone.grid['lt_x'], zone.grid['lt_y'],
-                     rb_x1, zone.grid['rb_y'], self.id, zId)
+                                 rb_x1, zone.grid['rb_y'], self.id, zId)
         zone2 = self.create_zone(lt_x2, zone.grid['lt_y'],
-                     zone.grid['rb_x'], zone.grid['rb_y'], self.id, zId)
+                                 zone.grid['rb_x'], zone.grid['rb_y'],
+                                 self.id, zId)
 
         # client move
         for member in zone.get_all_members():
-            zone1.add_member(member["client_id"], member["client_x"], member["client_y"])
-            zone2.add_member(member["client_id"], member["client_x"], member["client_y"])
-            
+            zone1.add_member(member["client_id"],
+                             member["client_x"], member["client_y"])
+            zone2.add_member(member["client_id"],
+                             member["client_x"], member["client_y"])
+
         self.update_zone(zone1)
         self.update_zone(zone2)
 
         self.zones[zone1.get_id()] = zone1
         self.zones[zone2.get_id()] = zone2
 
+        # update for merge
+        data, stat = self.zk_client.get(self.zk_zone_tree_path)
+        tree_data = json.loads(data)
+        idx = tree_data[zId]
+
+        tree_data[zone1.get_id()] = 2*idx
+        tree_data[zone2.get_id()] = 2*idx + 1
+        tree_data[str(2*idx)] = zone1.get_id()
+        tree_data[str(2*idx+1)] = zone2.get_id()
+
+        self.zk_client.set(self.zk_zone_tree_path, json.dumps(tree_data))
+
         self.delete_zone(zone)
 
-    # on_mq_z_destroy: TODO
+    # on_mq_z_destroy
     def on_mq_z_destroy(self, server_id, message):
-
         self.delete_zone(self.zones[message.zId])
 
-    # on_mq_z_merge: TODO
+    # on_mq_z_merge
     def on_mq_z_merge(self, server_id, message):
-        
         zId1 = message.zid1
         zId2 = message.zid2
         zone1 = self.zones[zId1]
@@ -248,8 +273,25 @@ class ZoneServer(AbstractServer):
         rb_x = max(zone1.grid['rb_x'], zone2.grid['rb_x'])
         rb_y = max(zone1.grid['rb_y'], zone2.grid['rb_y'])
 
-        # wj TODO parent_id ???
+        # merge tree
+        data, stat = self.zk_client.get(self.zk_zone_tree_path)
+        tree_data = json.loads(data)
+        idx1 = min(tree_data[zId1], tree_data[zId2]) # left
+        idx2 = max(tree_data[zId1], tree_data[zId2]) # right
+
         zone = self.create_zone(lt_x, lt_y, rb_x, rb_y, self.id)
+
+        idx = idx1/2
+
+        del tree_data[str(idx1)]
+        del tree_data[str(idx2)]
+        del tree_data[zone1.get_id()]
+        del tree_data[zone2.get_id()]
+
+        tree_data[str(idx)] = zone.get_id()
+        tree_data[zone.get_id()] = idx
+
+        self.zk_client.set(self.zk_zone_tree_path, json.dumps(tree_data))
 
         self.delete_zone(zone1)
         self.delete_zone(zone2)
@@ -300,8 +342,6 @@ class ZoneServer(AbstractServer):
 
             # register monitoring
             self.add_timed_call(self.update_zk_node_data, 5)
-
-            #zone = self.create_zone(0, 0, 511, 511, self.id)
 
             AbstractServer.run(self)
 

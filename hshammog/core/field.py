@@ -128,17 +128,22 @@ class Zone:
     def update_member(self, member_id, delta_x, delta_y):
         if member_id in self.members.keys():
             member = self.get_member(member_id)
+
+            was_at_inner_zone = member.is_at_inner_zone()
+
             member.update(delta_x, delta_y)
             member.in_grid(self.grid)
+
+            is_at_perimeter_zone = member.is_at_perimeter_zone()
 
             if member.is_out():
                 del self.members[member_id]
             else:
                 self.members[member_id] = member
-
-            return member
+  
+            return (member, was_at_inner_zone and is_at_perimeter_zone)
         else:
-            return None
+            return (None, False)
 
     def add_member(self, member_id, x, y):
         member = ZoneMember(member_id, x, y)
