@@ -140,7 +140,7 @@ class Zone:
                 del self.members[member_id]
             else:
                 self.members[member_id] = member
-  
+
             return (member, was_at_inner_zone and is_at_perimeter_zone)
         else:
             return (None, False)

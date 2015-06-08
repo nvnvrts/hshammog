@@ -86,7 +86,7 @@ if __name__ == '__main__':
                                help='application type')
     subparser_run.add_argument('server_mode',
                                choices=('mq', 'server', 'client',
-                                        'gateway', 'monitor'),
+                                        'gateway', 'monitor', 'proxy'),
                                default='mq',
                                help='server type')
 

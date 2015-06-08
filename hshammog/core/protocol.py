@@ -10,7 +10,7 @@ class Message:
                  msg=None, rid=None, roomlist=None, clientlist=None,
 
                  x=None, y=None, width=None, height=None,
-                 zid1=None, zid2=None, timestamp=-1):
+                 zid1=None, zid2=None, zid3=None, timestamp=-1):
         self.cmd = cmd
         self.cid = cid
         self.ciddest = ciddest
@@ -25,6 +25,7 @@ class Message:
         self.height = height
         self.zid1 = zid1
         self.zid2 = zid2
+        self.zid3 = zid3
         self.timestamp = timestamp
 
     def dumps(self):
@@ -132,7 +133,15 @@ class MessageHelper(object):
         (lambda message: {'cmd': 'zDestroy', 'zId': message.zid1}),
         'zMerge':
         (lambda message: {'cmd': 'zMerge', 'zId1': message.zid1,
-                          'zId2': message.zid2})
+                          'zId2': message.zid2}),
+        'zAddDone':
+        (lambda message: {'cmd': 'zAddDone', 'zId': message.zid1}),
+        'zSplitDone':
+        (lambda message: {'cmd': 'zSplitDone', 'zIdParent': message.zid1,
+                          'zId1': message.zid2, 'zId2': message.zid3}),
+        'zMergeDone':
+        (lambda message: {'cmd': 'zMergeDone', 'zIdParent': message.zid1,
+                          'zId1': message.zid2, 'zId2': message.zid3})
     }
 
     decode_functions = {
@@ -240,7 +249,20 @@ class MessageHelper(object):
         'zMerge':
         (lambda message: Message(cmd='zMerge',
                                  zid1=message['zId1'],
-                                 zid2=message['zId2']))
+                                 zid2=message['zId2'])),
+        'zAddDone':
+        (lambda message: Message(cmd='zAddDone',
+                                 zid1=message['zId'])),
+        'zSplitDone':
+        (lambda message: Message(cmd='zSplitDone',
+                                 zid1=message['zIdParent'],
+                                 zid2=message['zId1'],
+                                 zid3=message['zId2'])),
+        'zMergeDone':
+        (lambda message: Message(cmd='zMergeDone',
+                                 zid1=message['zIdParent'],
+                                 zid2=message['zId1'],
+                                 zid3=message['zId2']))
     }
 
     @staticmethod

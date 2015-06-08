@@ -179,7 +179,7 @@
                     heading: gw.gateway_id + " (clients: " + gw.num_client + ")",
                     cpu: Math.floor(gw.cpu_usage),
                     mem: Math.floor(gw.mem_usage),
-                    desc: ""
+                    desc: "IP address: " + gw.address
                 };
 
                 style = "success";
@@ -202,7 +202,7 @@
                     heading: zs.zoneserver_id + " (zones: " + zs.num_zone + ")",
                     cpu: Math.floor(zs.cpu_usage),
                     mem: Math.floor(zs.mem_usage),
-                    desc: ""
+                    desc: "IP address: " + zs.address
                 };
 
                 style = "success";

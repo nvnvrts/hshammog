@@ -18,7 +18,12 @@ class TestRunner:
     def client_connect(self):
         try:
             clientsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            clientsock.connect(('192.168.0.5', 5800))
+            clientsock.connect(('192.168.0.5', 5700))
+            ret_addr = clientsock.recv(128)
+            clientsock.close()
+
+            clientsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            clientsock.connect((ret_addr, 5800))
             l_onoff = 1
             l_linger = 0
             clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
@@ -61,27 +66,28 @@ class TestRunner:
         except:
             print 'sExit error\n'
 
-    def fStart_test(self, clientsock, cid):
+    def fStart_test(self, clientsock, cid, x, y):
         try:
             msg_dic = {}
             msg_dic['cmd'] = 'fStart'
             msg_dic['cId'] = cid
-            msg_dic['xCoordinate'] = random.randint(0, 511)
-            msg_dic['yCoordinate'] = random.randint(0, 511)
+            msg_dic['xCoordinate'] = x
+            msg_dic['yCoordinate'] = y
             msg_json = JSONObject(msg_dic)
 
             msg = self.send_message(clientsock, str(msg_json))
+
             return msg
         except:
             print 'fStart error\n'
 
-    def fMove_test(self, clientsock, cid, x, y):
+    def fMove_test(self, clientsock, cid, dx, dy):
         try:
             msg_dic = {}
             msg_dic['cmd'] = 'fMove'
             msg_dic['cId'] = cid
-            msg_dic['xDelta'] = max(min(x + random.randint(-2, 2), 511), 0) - x
-            msg_dic['yDelta'] = max(min(y + random.randint(-2, 2), 511), 0) - y
+            msg_dic['xDelta'] = dx
+            msg_dic['yDelta'] = dy
             msg_json = JSONObject(msg_dic)
 
             msg = self.send_message(clientsock, str(msg_json))
@@ -108,28 +114,43 @@ class TestRunner:
             cid = JSONObject(msg).getString('cId')
 
             # fStart
-            msg = self.fStart_test(clientsock, cid)
+            x = random.randint(0, 511)
+            y = random.randint(0, 511)
+
+            msg = self.fStart_test(clientsock, cid, x, y)
             msg_json = JSONObject(msg)
 
-            x = msg_json.getInt('xCoordinate')
-            y = msg_json.getInt('yCoordinate')
+            new_x = msg_json.getInt('xCoordinate')
+            new_y = msg_json.getInt('yCoordinate')
+
+            if x != new_x or y != new_y:
+                raise Exception('fStart Mismatch')
 
             for i in range(100):
-                msg = self.fMove_test(clientsock, cid, x, y)
+                new_x = max(min(x + random.randint(-2, 2), 511), 0)
+                new_y = max(min(y + random.randint(-2, 2), 511), 0)
+
+                msg = self.fMove_test(clientsock, cid, new_x - x, new_y - y)
                 msg_json = JSONObject(msg)
 
                 x = msg_json.getInt('xCoordinate')
                 y = msg_json.getInt('yCoordinate')
+
+                if x != new_x or y != new_y:
+                    raise Exception('fMove Mismatch')
 
             # sExit
             msg = self.sExit_test(clientsock, cid)
 
             print 'done!'
 
-        except socket.error, e:
+        except socket.error as e:
+            grinder.logger.error(str(e))
+            grinder.statistics.forLastTest.success = 0
+        except Exception as e:
             grinder.logger.error(str(e))
             grinder.statistics.forLastTest.success = 0
         finally:
             clientsock.close()
 
-Test(1, 'NNI-LookupServer Test').record(TestRunner.send_message)
+Test(1, 'NNI-Field move test').record(TestRunner.send_message)

@@ -1,6 +1,7 @@
 __all__ = ['Error', 'ServerError', 'MessageParseError', 'GatewayError',
            'RoomServerError', 'RoomServerNotFoundError', 'ZoneServerError',
-           'ZoneServerNotFoundError', 'MonitorError']
+           'ZoneServerNotFoundError', 'MonitorError',
+           'ProxyError']
 
 
 class Error(Exception):
@@ -54,9 +55,18 @@ class ZoneServerNotFoundError(ServerError):
     def __init__(self, sid):
         self.sid = sid
 
+
 class MonitorError(ServerError):
     def __init__(self, msg):
-        self.msg= msg
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
+
+
+class ProxyError(ServerError):
+    def __init__(self, msg):
+        self.msg = msg
 
     def __str__(self):
         return repr(self.msg)

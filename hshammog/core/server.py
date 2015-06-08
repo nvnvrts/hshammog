@@ -1,7 +1,9 @@
+# generic python libraries
 import uuid
 import zlib
 import ctypes
 import logging
+import socket
 import sys
 
 # python packages
@@ -41,6 +43,9 @@ class AbstractServer():
         self.roomserver_ids = []
         self.zoneserver_ids = []
         self.zone_ids = []
+
+        # get network configuration
+        self.get_ip_address()
 
     def ensure_path_zk(self, path):
         newpath = ''
@@ -101,12 +106,6 @@ class AbstractServer():
             # recursive ensure_path not working
             # self.zk_client.ensure_path(self.zk_zone_zones_path)
             self.ensure_path_zk(self.zk_zone_zones_path)
-
-            self.zk_zone_tree_path = \
-                cfg.zk_root + cfg.zk_path + '/zone-tree'
-            # recursive ensure_path not working
-            # self.zk_client.ensure_path(self.zk_zone_tree_path)
-            self.ensure_path_zk(self.zk_zone_tree_path)
 
         except Exception as e:
             zk_success = str(e)
@@ -271,8 +270,15 @@ class AbstractServer():
     def add_timed_call(self, function, period):
         LoopingCall(function).start(period)
 
+    def get_ip_address(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((cfg.proxy_servers[0], cfg.proxy_port))
+
+        self.ip_address = s.getsockname()[0]
+
     def run(self):
         try:
+            logger.info('starting %s at %s' % (self.id, self.ip_address))
             reactor.run()
 
         except Exception as e:

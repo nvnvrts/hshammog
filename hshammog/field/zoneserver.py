@@ -3,6 +3,9 @@ import json
 import logging
 import psutil
 
+# python libraries
+from kazoo.recipe.lock import Lock
+
 # hahammog
 from conf import cfg
 from core import logger
@@ -126,7 +129,7 @@ class ZoneServer(AbstractServer):
                                              timestamp=message.timestamp))
                 if hoff:
                     for zone_id, zone in self.zones.iteritems():
-                        zone.add_member(member.cid, member.x, member.y)
+                        zone.add_member(member.client_id, member.x, member.y)
 
     # on_mq_f_lookup
     def on_mq_f_lookup(self, server_id, message):
@@ -170,13 +173,13 @@ class ZoneServer(AbstractServer):
                                     lt_x + width - 1, lt_y + height - 1,
                                     self.id)
 
-        # update data
-        tree_data = json.dumps({1: new_zone.get_id(), new_zone.get_id(): 1})
-        self.zk_client.set(self.zk_zone_tree_path, tree_data)
+        self.publish_message(server_id,
+                             Message(cmd='zAddDone',
+                                     zid1=new_zone.get_id(),
+                                     timestamp=message.timestamp))
 
     # on_mq_z_hsplit: TODO
     def on_mq_z_hsplit(self, server_id, message):
-
         zId = message.zid1
         zone = self.zones[zId]
 
@@ -202,19 +205,14 @@ class ZoneServer(AbstractServer):
         self.zones[zone1.get_id()] = zone1
         self.zones[zone2.get_id()] = zone2
 
-        # update for merge
-        data, stat = self.zk_client.get(self.zk_zone_tree_path)
-        tree_data = json.loads(data)
-        idx = tree_data[zId]
-
-        tree_data[zone1.get_id()] = 2*idx
-        tree_data[zone2.get_id()] = 2*idx + 1
-        tree_data[str(2*idx)] = zone1.get_id()
-        tree_data[str(2*idx+1)] = zone2.get_id()
-
-        self.zk_client.set(self.zk_zone_tree_path, json.dumps(tree_data))
-
         self.delete_zone(zone)
+
+        self.publish_message(server_id,
+                             Message(cmd='zSplitDone',
+                                     zid1=zone.get_id(),
+                                     zid2=zone1.get_id(),
+                                     zid3=zone2.get_id(),
+                                     timestamp=message.timestamp))
 
     # on_mq_z_vsplit
     def on_mq_z_vsplit(self, server_id, message):
@@ -243,23 +241,19 @@ class ZoneServer(AbstractServer):
         self.zones[zone1.get_id()] = zone1
         self.zones[zone2.get_id()] = zone2
 
-        # update for merge
-        data, stat = self.zk_client.get(self.zk_zone_tree_path)
-        tree_data = json.loads(data)
-        idx = tree_data[zId]
-
-        tree_data[zone1.get_id()] = 2*idx
-        tree_data[zone2.get_id()] = 2*idx + 1
-        tree_data[str(2*idx)] = zone1.get_id()
-        tree_data[str(2*idx+1)] = zone2.get_id()
-
-        self.zk_client.set(self.zk_zone_tree_path, json.dumps(tree_data))
-
         self.delete_zone(zone)
+
+        self.publish_message(server_id,
+                             Message(cmd='zSplitDone',
+                                     zid1=zone.get_id(),
+                                     zid2=zone1.get_id(),
+                                     zid3=zone2.get_id(),
+                                     timestamp=message.timestamp))
 
     # on_mq_z_destroy
     def on_mq_z_destroy(self, server_id, message):
         self.delete_zone(self.zones[message.zId])
+        pass
 
     # on_mq_z_merge
     def on_mq_z_merge(self, server_id, message):
@@ -273,35 +267,24 @@ class ZoneServer(AbstractServer):
         rb_x = max(zone1.grid['rb_x'], zone2.grid['rb_x'])
         rb_y = max(zone1.grid['rb_y'], zone2.grid['rb_y'])
 
-        # merge tree
-        data, stat = self.zk_client.get(self.zk_zone_tree_path)
-        tree_data = json.loads(data)
-        idx1 = min(tree_data[zId1], tree_data[zId2]) # left
-        idx2 = max(tree_data[zId1], tree_data[zId2]) # right
-
         zone = self.create_zone(lt_x, lt_y, rb_x, rb_y, self.id)
-
-        idx = idx1/2
-
-        del tree_data[str(idx1)]
-        del tree_data[str(idx2)]
-        del tree_data[zone1.get_id()]
-        del tree_data[zone2.get_id()]
-
-        tree_data[str(idx)] = zone.get_id()
-        tree_data[zone.get_id()] = idx
-
-        self.zk_client.set(self.zk_zone_tree_path, json.dumps(tree_data))
-
         self.delete_zone(zone1)
         self.delete_zone(zone2)
+
+        self.publish_message(server_id,
+                             Message(cmd='zMergeDone',
+                                     zid1=zone.get_id(),
+                                     zid2=zone1.get_id(),
+                                     zid3=zone2.get_id(),
+                                     timestamp=message.timestamp))
 
     def dumps(self):
         data = {
             'cpu_usage': psutil.cpu_percent(interval=None, percpu=True),
             'mem_usage': psutil.virtual_memory().percent,
             'list_zone': [],
-            'num_zone': len(self.zones)
+            'num_zone': len(self.zones),
+            'ip_address': self.ip_address
         }
 
         for zid, zone in self.zones.iteritems():
@@ -328,7 +311,8 @@ class ZoneServer(AbstractServer):
                 'cpu_usage': psutil.cpu_percent(interval=None, percpu=True),
                 'mem_usage': psutil.virtual_memory().percent,
                 'list_zone': {},
-                'num_zone': 0
+                'num_zone': 0,
+                'ip_address': self.ip_address
             }
 
             # zookeeper setup

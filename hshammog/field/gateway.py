@@ -2,6 +2,7 @@
 import random
 import psutil
 import json
+import socket
 
 # python packages
 from kazoo.exceptions import NoNodeError  # kazoo
@@ -325,7 +326,8 @@ class Gateway(AbstractServer):
         data = {
             'cpu_usage': psutil.cpu_percent(interval=None, percpu=True),
             'mem_usage': psutil.virtual_memory().percent,
-            'num_client': len(self.clients)
+            'num_client': len(self.clients),
+            'ip_address': self.ip_address
         }
 
         return json.dumps(data)

@@ -20,3 +20,6 @@ def run(server_mode):
         from field.monitor import Monitor
         Monitor(cfg.monitor_port, cfg.mq_servers[0], cfg.mq_outport,
                 cfg.mq_inport, cfg.zk_servers[0], cfg.zk_path).run()
+    elif server_mode == 'proxy':
+        from field.proxy import Proxy
+        Proxy(cfg.proxy_port, cfg.zk_servers[0], cfg.zk_path).run()
