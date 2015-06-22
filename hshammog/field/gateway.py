@@ -2,6 +2,7 @@
 import random
 import psutil
 import json
+import socket
 
 # python packages
 from kazoo.exceptions import NoNodeError  # kazoo
@@ -14,9 +15,7 @@ from core.server import AbstractServer
 
 
 class Gateway(AbstractServer):
-    '''
-    Gateway
-    '''
+    ''' Gateway '''
 
     def __init__(self,
                  client_tcp_port, client_websocket_port,
@@ -37,23 +36,26 @@ class Gateway(AbstractServer):
 
         # mq message handlers
         self.mq_handlers = {
-            'rJAccept': self.on_mq_r_j_accept,
-            'rJReject': self.on_mq_r_j_reject,
-            'rMList': self.on_mq_r_m_list,
-            'rBMsg': self.on_mq_r_b_msg,
-            'rBye': self.on_mq_r_bye,
+            'fLoc': self.on_mq_f_loc,
+            'fBMsg': self.on_mq_f_bmsg,
+            'fList': self.on_mq_f_list,
+            'fError': self.on_mq_f_error
         }
 
         # client message handlers
         self.client_handlers = {
             'sConnect': self.on_client_s_connect,
-            'rLookup': self.on_client_r_lookup,
-            'rJoin': self.on_client_r_join,
-            'rMLookup': self.on_client_r_m_lookup,
-            'rMsg': self.on_client_r_msg,
-            'rExit': self.on_client_r_exit,
             'sExit': self.on_client_s_exit,
             'sError': self.on_client_s_error,
+            'fStart': self.on_client_f_start,
+            'fMove': self.on_client_f_move,
+            'fLookup': self.on_client_f_lookup,
+            'fMsg': self.on_client_f_msg,
+            'zAdd': self.on_client_z_add,
+            'zVSplit': self.on_client_z_vsplit,
+            'zHSplit': self.on_client_z_hsplit,
+            'zDestroy': self.on_client_z_destroy,
+            'zMerge': self.on_client_z_merge
         }
 
         # initialize client dictionary
@@ -66,42 +68,38 @@ class Gateway(AbstractServer):
 
     def update_zk_node_data(self):
         path = self.zk_gateway_servers_path + self.id
-        data = {
-            'cpu_usage': psutil.cpu_percent(interval=None, percpu=True),
-            'mem_usage': psutil.virtual_memory().percent,
-            'num_clients': len(self.clients)
-        }
+        data = self.dumps()
 
         # set node data
-        self.zk_client.set(path, json.dumps(data))
+        self.zk_client.set(path, data)
 
-    def get_zk_roomserver(self, rid):
-        server_id = self.server_id_cache.get(rid)
+    def get_zk_zoneserver(self, zid):
+        server_id = self.server_id_cache.get(zid)
         if not server_id:
-            path = self.zk_room_rooms_path + rid
+            path = self.zk_zone_zones_path + zid
 
             try:
                 data, stat = self.zk_client.get(path)
             except NoNodeError:
-                raise RoomServerNotFoundError(rid)
+                raise ZoneServerNotFoundError(zid)
 
-            room_data = json.loads(data)
-            server_id = room_data['server_id']
-            self.server_id_cache[rid] = server_id
+            zone_data = json.loads(data)
+            server_id = zone_data['server_id']
+            self.server_id_cache[zid] = server_id
 
         return server_id
 
-    def on_zk_roomserver_added(self, roomservers):
-        logger.info('roomservers added... %s' % roomservers)
+    def on_zk_zoneserver_added(self, zoneservers):
+        logger.info('zoneservers added... %s' % zoneservers)
 
-    def on_zk_roomserver_removed(self, roomservers):
-        logger.info('roomservers removed... %s' % roomservers)
+    def on_zk_zoneserver_removed(self, roomservers):
+        logger.info('zoneservers removed... %s' % zoneservers)
 
-        for roomserver in roomservers:
-            for rid in self.server_id_cache.keys():
-                server_id = self.server_id_cache.get(rid)
-                if server_id == roomserver:
-                    del self.server_id_cache[rid]
+        for zoneserver in zoneservers:
+            for zid in self.server_id_cache.keys():
+                server_id = self.server_id_cache.get(zid)
+                if server_id == zoneserver:
+                    del self.server_id_cache[zid]
 
     def pub_message_to_mq(self, tag, message):
         data = '%s|%s|%s' % (self.id, message.dumps(), message.timestamp)
@@ -113,6 +111,7 @@ class Gateway(AbstractServer):
         logger.debug('SUB %s %s' % (tag, data))
 
         # parse message from mq
+
         server_id, payload, timestamp = data.split('|', 2)
         message = MessageHelper.load_message(payload)
         message.timestamp = int(timestamp)
@@ -120,7 +119,7 @@ class Gateway(AbstractServer):
         # invoke mq message handler
         self.mq_handlers[message.cmd](message)
 
-    def on_mq_r_j_accept(self, message):
+    def on_mq_f_loc(self, message):
         client = self.clients.get(message.cid)
 
         if client:
@@ -128,7 +127,7 @@ class Gateway(AbstractServer):
         else:
             pass
 
-    def on_mq_r_j_reject(self, message):
+    def on_mq_f_list(self, message):
         client = self.clients.get(message.cid)
 
         if client:
@@ -136,30 +135,20 @@ class Gateway(AbstractServer):
         else:
             pass
 
-    def on_mq_r_m_list(self, message):
+    def on_mq_f_bmsg(self, message):
+        client = self.clients.get(message.cid)
+
+        if client:
+            self.send_message_to_client(client, message, message.timestamp)
+        else:
+            pass
+
+    def on_mq_f_error(self, message):
         client = self.clients.get(message.cid)
 
         if client:
             self.send_message_to_client(client, message, message.timestamp)
 
-        else:
-            pass
-
-    def on_mq_r_b_msg(self, message):
-        client = self.clients.get(message.ciddest)
-
-        if client is not None and message.ciddest == message.cid:
-            self.send_message_to_client(client, message, message.timestamp)
-        elif client is not None:
-            #TODO: removing of duplicated rBMsg
-            self.send_message_to_client(client, message, -1)
-        else:
-            pass
-
-    def on_mq_r_bye(self, message):
-        client = self.clients.get(message.cid)
-        if client:
-            self.send_message_to_client(client, message, message.timestamp)
         else:
             pass
 
@@ -216,9 +205,9 @@ class Gateway(AbstractServer):
 
         self.update_zk_node_data()
 
-        # send message to all room servers
-        self.pub_message_to_mq('roomserver-allserver',
-                               Message(cmd='rExitAll', cid=client.get_id()))
+        # send message to all zone servers
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fExit', cid=client.get_id()))
 
     def validate_client(self, client, message):
         fetched_client = self.clients.get(message.cid)
@@ -261,105 +250,67 @@ class Gateway(AbstractServer):
                                             cid=client.get_id()),
                                     message.timestamp)
 
-    def on_client_r_lookup(self, client, message):
-        if self.validate_client(client, message):
-            client = self.clients[message.cid]
+    # on_client_f_start
+    def on_client_f_start(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fStart',
+                                       cid=message.cid,
+                                       x=message.x,
+                                       y=message.y,
+                                       timestamp=message.timestamp))
 
-            room_list = []
+    # on_client_f_move
+    def on_client_f_move(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fMove',
+                                       cid=message.cid,
+                                       x=message.x,
+                                       y=message.y,
+                                       timestamp=message.timestamp))
 
-            # gather room list from zk node data
-            for room_server in self.get_zk_roomservers():
-                path = self.zk_room_servers_path + room_server
+    # on_client_f_lookup
+    def on_client_f_lookup(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='fLookup',
+                                       cid=message.cid,
+                                       x=message.x,
+                                       y=message.y,
+                                       timestamp=message.timestamp))
 
-                try:
-                    data, stat = self.zk_client.get(path)
-                    for rid, values in json.loads(data)['rooms'].iteritems():
-                        if values['count'] < values['max'] and \
-                           len(room_list) < message.nmaxroom:
-                            room = {
-                                'rId': rid,
-                                'num_client': values['count']
-                            }
-                            room_list.append(room)
-                except NoNodeError:
-                    pass
+    # on_client_f_msg: TODO
+    def on_client_f_msg(self, client, message):
+        pass
 
-                if len(room_list) >= message.nmaxroom:
-                    break
+    # on_client_z_add
+    def on_client_z_add(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='zAdd',
+                                       x=message.x,
+                                       y=message.y,
+                                       width=message.width,
+                                       height=message.height))
 
-            self.send_message_to_client(client,
-                                        Message(cmd='rList',
-                                                roomlist=room_list,
-                                                cid=client.get_id()),
-                                        message.timestamp)
+    # on_client_z_vsplit
+    def on_client_z_vsplit(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='zVSplit', zid1=message.zid1))
 
-    def on_client_r_join(self, client, message):
-        if self.validate_client(client, message):
-            client = self.clients[message.cid]
+    # on_client_z_hsplit
+    def on_client_z_hsplit(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='zHSplit', zid1=message.zid1))
 
-            if message.rid == 0:
-                # gateway chooses a room if rid is 0
-                roomservers = self.get_zk_roomservers()
-                if roomservers:
-                    server_id = random.choice(roomservers)
-                else:
-                    self.send_message_to_client(client,
-                                                Message(cmd='rJReject',
-                                                        cid=message.cid,
-                                                        rid=message.rid,
-                                                        msg='no room servers'),
-                                                message.timestamp)
-                    return
-            else:
-                try:
-                    server_id = self.get_zk_roomserver(message.rid)
-                except RoomServerNotFoundError:
-                    self.send_message_to_client(client,
-                                                Message(cmd='rJReject',
-                                                        cid=message.cid,
-                                                        rid=message.rid,
-                                                        msg='room %s does not '
-                                                        'exist' % message.rid),
-                                                message.timestamp)
-                    return
+    # on_client_z_destroy
+    def on_client_z_destroy(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='zDestroy', zid1=message.zid1))
 
-                self.pub_message_to_mq(server_id, message)
-
-    def on_client_r_m_lookup(self, client, message):
-        if self.validate_client(client, message):
-            client = self.clients[message.cid]
-            try:
-                server_id = self.get_zk_roomserver(message.rid)
-                self.pub_message_to_mq(server_id, message)
-            except RoomServerNotFoundError as e:
-                self.send_message_to_client(client, Message(cmd='rBye',
-                                                            cid=message.cid,
-                                                            rid=message.rid),
-                                            message.timestamp)
-
-    def on_client_r_msg(self, client, message):
-        if self.validate_client(client, message):
-            client = self.clients[message.cid]
-            try:
-                server_id = self.get_zk_roomserver(message.rid)
-                self.pub_message_to_mq(server_id, message)
-            except RoomServerNotFoundError as e:
-                self.send_message_to_client(client, Message(cmd='rBye',
-                                                            cid=message.cid,
-                                                            rid=message.rid),
-                                            message.timestamp)
-
-    def on_client_r_exit(self, client, message):
-        if self.validate_client(client, message):
-            client = self.clients[message.cid]
-            try:
-                server_id = self.get_zk_roomserver(message.rid)
-                self.pub_message_to_mq(server_id, message)
-            except RoomServerNotFoundError as e:
-                self.send_message_to_client(client, Message(cmd='rBye',
-                                                            cid=message.cid,
-                                                            rid=message.rid),
-                                            message.timestamp)
+    # on_client_z_merge
+    def on_client_z_merge(self, client, message):
+        self.pub_message_to_mq('zoneserver-allserver',
+                               Message(cmd='zMerge',
+                                       zid1=message.zid1,
+                                       zid2=message.zid2))
 
     def on_client_s_exit(self, client, message):
         if self.validate_client(client, message):
@@ -371,6 +322,16 @@ class Gateway(AbstractServer):
         logger.error('client %s error %s' % (client.get_id(), message.msg))
         self.send_message_to_client(client, message, message.timestamp)
 
+    def dumps(self):
+        data = {
+            'cpu_usage': psutil.cpu_percent(interval=None, percpu=True),
+            'mem_usage': psutil.virtual_memory().percent,
+            'num_client': len(self.clients),
+            'ip_address': self.ip_address
+        }
+
+        return json.dumps(data)
+
     def run(self):
         try:
             zk_success = self.initialize_zk()
@@ -378,16 +339,10 @@ class Gateway(AbstractServer):
             if zk_success is not None:
                 raise GatewayError(zk_success)
 
-            data = {
-                'cpu_usage': psutil.cpu_percent(interval=None, percpu=True),
-                'mem_usage': psutil.virtual_memory().percent,
-                'num_clients': len(self.clients)
-            }
-
             # zookeeper setup
             node = self.zk_client.create(path=self.zk_gateway_servers_path +
                                          self.id,
-                                         value=json.dumps(data),
+                                         value=self.dumps(),
                                          ephemeral=True,
                                          sequence=False)
 
@@ -395,7 +350,7 @@ class Gateway(AbstractServer):
             self.connect_mq(self.mq_host, self.mq_pub_port,
                             self.mq_sub_port, self.id)
 
-            self.watch_zk_roomservers()
+            self.watch_zk_zoneservers()
 
             self.listen_tcp_client(self.client_tcp_port)
             self.listen_websocket_client(self.client_websocket_port)

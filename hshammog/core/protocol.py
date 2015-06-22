@@ -7,7 +7,10 @@ class Message:
     ''' Message '''
 
     def __init__(self, cmd=None, cid=None, ciddest=None, nmaxroom=None,
-                 msg=None, rid=None, roomlist=None, timestamp=-1):
+                 msg=None, rid=None, roomlist=None, clientlist=None,
+
+                 x=None, y=None, width=None, height=None,
+                 zid1=None, zid2=None, zid3=None, timestamp=-1):
         self.cmd = cmd
         self.cid = cid
         self.ciddest = ciddest
@@ -15,6 +18,14 @@ class Message:
         self.msg = msg
         self.rid = rid
         self.roomlist = roomlist
+        self.clientlist = clientlist
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.zid1 = zid1
+        self.zid2 = zid2
+        self.zid3 = zid3
         self.timestamp = timestamp
 
     def dumps(self):
@@ -52,6 +63,13 @@ class MessageHelper(object):
         'rJReject':
         (lambda message: {'cmd': 'rJReject', 'cId': message.cid,
                           'rId': message.rid, 'msg': message.msg}),
+        'rMLookup':
+        (lambda message: {'cmd': 'rMLookup', 'cId': message.cid,
+                          'rId': message.rid}),
+        'rMList':
+        (lambda message: {'cmd': 'rMList', 'cId': message.cid,
+                          'rId': message.rid,
+                          'clientList': message.clientlist}),
         'rMsg':
         (lambda message: {'cmd': 'rMsg', 'cIdSrc': message.cid,
                           'cIdDest': message.ciddest, 'rId': message.rid,
@@ -69,7 +87,61 @@ class MessageHelper(object):
         'rExitAll':
         (lambda message: {'cmd': 'rExitAll', 'cId': message.cid}),
         'rError':
-        (lambda message: {'cmd': 'rError', 'eMsg': message.msg})
+        (lambda message: {'cmd': 'rError', 'eMsg': message.msg}),
+        'fStart':
+        (lambda message: {'cmd': 'fStart', 'cId': message.cid,
+                          'xCoordinate': message.x,
+                          'yCoordinate': message.y}),
+        'fMove':
+        (lambda message: {'cmd': 'fMove', 'cId': message.cid,
+                          'xDelta': message.x, 'yDelta': message.y}),
+        'fLookup':
+        (lambda message: {'cmd': 'fLookup', 'cId': message.cid}),
+        'fLoc':
+        (lambda message: {'cmd': 'fLoc', 'cId': message.cid,
+                          'xCoordinate': message.x,
+                          'yCoordinate': message.y}),
+        'fList':
+        (lambda message: {'cmd': 'fList', 'cId': message.cid,
+                          'clientList': message.clientlist,
+                          'zId': message.zid1,
+                          'zone_lt_x': message.x,
+                          'zone_lt_y': message.y,
+                          'zone_width': message.width,
+                          'zone_height': message.height,
+                          'clientList': message.clientlist}),
+        'fMsg':
+        (lambda message: {'cmd': 'fMsg', 'cId': message.cid,
+                          'msg': message.msg}),
+        'fBMsg':
+        (lambda message: {'cmd': 'fBMsg', 'cIdSrc': message.cid,
+                          'cIdDest': message.ciddest, 'msg': message.msg}),
+        'fError':
+        (lambda message: {'cmd': 'fError', 'cId': message.cid,
+                          'eMsg': message.msg}),
+        'fExit':
+        (lambda message: {'cmd': 'fExit', 'cId': message.cid}),
+        'zAdd':
+        (lambda message: {'cmd': 'zAdd',
+                          'lt_x': message.x, 'lt_y': message.y,
+                          'width': message.width, 'height': message.height}),
+        'zVSplit':
+        (lambda message: {'cmd': 'zVSplit', 'zId': message.zid1}),
+        'zHSplit':
+        (lambda message: {'cmd': 'zHSplit', 'zId': message.zid1}),
+        'zDestroy':
+        (lambda message: {'cmd': 'zDestroy', 'zId': message.zid1}),
+        'zMerge':
+        (lambda message: {'cmd': 'zMerge', 'zId1': message.zid1,
+                          'zId2': message.zid2}),
+        'zAddDone':
+        (lambda message: {'cmd': 'zAddDone', 'zId': message.zid1}),
+        'zSplitDone':
+        (lambda message: {'cmd': 'zSplitDone', 'zIdParent': message.zid1,
+                          'zId1': message.zid2, 'zId2': message.zid3}),
+        'zMergeDone':
+        (lambda message: {'cmd': 'zMergeDone', 'zIdParent': message.zid1,
+                          'zId1': message.zid2, 'zId2': message.zid3})
     }
 
     decode_functions = {
@@ -100,6 +172,13 @@ class MessageHelper(object):
         'rJReject':
         (lambda message: Message(cmd='rJReject', cid=message['cId'],
                                  rid=message['rId'], msg=message['msg'])),
+        'rMLookup':
+        (lambda message: Message(cmd='rMLookup', cid=message['cId'],
+                                 rid=message['rId'])),
+        'rMList':
+        (lambda message: Message(cmd='rMList', cid=message['cId'],
+                                 rid=message['rId'],
+                                 clientlist=message['clientList'])),
         'rMsg':
         (lambda message: Message(cmd='rMsg', cid=message['cIdSrc'],
                                  ciddest=message['cIdDest'],
@@ -118,7 +197,72 @@ class MessageHelper(object):
         (lambda message: Message(cmd='rExitAll', cid=message['cId'])),
         'rError':
         (lambda message: Message(cmd='rError', cid=message['cId'],
-                                 msg=message['eMsg']))
+                                 msg=message['eMsg'])),
+        'fStart':
+        (lambda message: Message(cmd='fStart', cid=message['cId'],
+                                 x=message['xCoordinate'],
+                                 y=message['yCoordinate'])),
+        'fMove':
+        (lambda message: Message(cmd='fMove', cid=message['cId'],
+                                 x=message['xDelta'], y=message['yDelta'])),
+        'fLookup':
+        (lambda message: Message(cmd='fLookup', cid=message['cId'])),
+        'fLoc':
+        (lambda message: Message(cmd='fLoc', cid=message['cId'],
+                                 x=message['xCoordinate'],
+                                 y=message['yCoordinate'])),
+        'fList':
+        (lambda message: Message(cmd='fList', cid=message['cId'],
+                                 clientlist=message['clientList'],
+                                 zid1=message['zId'],
+                                 x=message['zone_lt_x'],
+                                 y=message['zone_lt_y'],
+                                 width=message['zone_width'],
+                                 height=message['zone_height'])),
+        'fMsg':
+        (lambda message: Message(cmd='fMsg', cid=message['cId'],
+                                 msg=message['msg'])),
+        'fBMsg':
+        (lambda message: Message(cmd='fBMsg', cid=message['cIdSrc'],
+                                 ciddest=message['cIdDest'],
+                                 msg=message['msg'])),
+        'fError':
+        (lambda message: Message(cmd='fError', cid=message['cId'],
+                                 msg=message['eMsg'])),
+        'fExit':
+        (lambda message: Message(cmd='fExit', cid=message['cId'])),
+        'zAdd':
+        (lambda message: Message(cmd='zAdd',
+                                 x=message['lt_x'],
+                                 y=message['lt_y'],
+                                 width=message['width'],
+                                 height=message['height'])),
+        'zVSplit':
+        (lambda message: Message(cmd='zVSplit',
+                                 zid1=message['zId'])),
+        'zHSplit':
+        (lambda message: Message(cmd='zHSplit',
+                                 zid1=message['zId'])),
+        'zDestroy':
+        (lambda message: Message(cmd='zDestroy',
+                                 zid1=message['zId'])),
+        'zMerge':
+        (lambda message: Message(cmd='zMerge',
+                                 zid1=message['zId1'],
+                                 zid2=message['zId2'])),
+        'zAddDone':
+        (lambda message: Message(cmd='zAddDone',
+                                 zid1=message['zId'])),
+        'zSplitDone':
+        (lambda message: Message(cmd='zSplitDone',
+                                 zid1=message['zIdParent'],
+                                 zid2=message['zId1'],
+                                 zid3=message['zId2'])),
+        'zMergeDone':
+        (lambda message: Message(cmd='zMergeDone',
+                                 zid1=message['zIdParent'],
+                                 zid2=message['zId1'],
+                                 zid3=message['zId2']))
     }
 
     @staticmethod

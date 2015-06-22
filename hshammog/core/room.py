@@ -29,6 +29,9 @@ class Room:
     def get_member(self, member_id):
         return self.members.get(member_id)
 
+    def get_all_member(self):
+        return self.members.keys()
+
     def join(self, member_id, value):
         self.members[member_id] = value
         logger.debug('%s joins room %s' % (member_id, self.id))
