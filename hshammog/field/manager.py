@@ -11,11 +11,12 @@ def run(server_mode):
         from field.gateway import Gateway
         Gateway(cfg.gw_port, cfg.ws_port,
                 cfg.mq_servers[0], cfg.mq_outport, cfg.mq_inport,
-                cfg.zk_servers[0], cfg.zk_path).run()
+                cfg.zk_servers[0], cfg.zk_path, cfg.monitor_servers[0]).run()
     elif server_mode == 'server':
         from field.zoneserver import ZoneServer
         ZoneServer(cfg.mq_servers[0], cfg.mq_outport,
-                   cfg.mq_inport, cfg.zk_servers[0], cfg.zk_path).run()
+                   cfg.mq_inport, cfg.zk_servers[0], cfg.zk_path,
+                   cfg.monitor_servers[0]).run()
     elif server_mode == 'monitor':
         from field.monitor import Monitor
         Monitor(cfg.monitor_port, cfg.mq_servers[0], cfg.mq_outport,

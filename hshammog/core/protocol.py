@@ -116,6 +116,12 @@ class MessageHelper(object):
         'fBMsg':
         (lambda message: {'cmd': 'fBMsg', 'cIdSrc': message.cid,
                           'cIdDest': message.ciddest, 'msg': message.msg}),
+        'fHOPrepare':
+        (lambda message: {'cmd': 'fHOPrepare', 'cId': message.cid,
+                          'zId': message.zid1, 'xCoordinate': message.x,
+                          'yCoordinate': message.y}),
+        'fHOCheck':
+        (lambda message: {'cmd': 'fHOCheck', 'cId': message.cid}),
         'fError':
         (lambda message: {'cmd': 'fError', 'cId': message.cid,
                           'eMsg': message.msg}),
@@ -226,6 +232,12 @@ class MessageHelper(object):
         (lambda message: Message(cmd='fBMsg', cid=message['cIdSrc'],
                                  ciddest=message['cIdDest'],
                                  msg=message['msg'])),
+        'fHOPrepare':
+        (lambda message: Message(cmd='fHOPrepare', cid=message['cId'],
+                                 zid1=message['zId'], x=message['xCoordinate'],
+                                 y=message['yCoordinate'])),
+        'fHOCheck':
+        (lambda message: Message(cmd='fHOCheck', cid=message['cId'])),
         'fError':
         (lambda message: Message(cmd='fError', cid=message['cId'],
                                  msg=message['eMsg'])),

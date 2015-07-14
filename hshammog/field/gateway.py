@@ -20,7 +20,7 @@ class Gateway(AbstractServer):
     def __init__(self,
                  client_tcp_port, client_websocket_port,
                  mq_host, mq_pub_port, mq_sub_port,
-                 zk_hosts, zk_path):
+                 zk_hosts, zk_path, monitor_host):
         AbstractServer.__init__(self, 'gateway', zk_hosts, zk_path)
 
         logger.info('gateway %s initializing...' % self.id)
@@ -33,7 +33,9 @@ class Gateway(AbstractServer):
         self.mq_sub_port = mq_sub_port
         self.zk_hosts = zk_hosts
         self.zk_path = zk_path
-
+        self.monitor_host = monitor_host
+        self.monitor_sock = socket.socket(socket.AF_INET,
+                                          socket.SOCK_STREAM)
         # mq message handlers
         self.mq_handlers = {
             'fLoc': self.on_mq_f_loc,
@@ -72,6 +74,7 @@ class Gateway(AbstractServer):
 
         # set node data
         self.zk_client.set(path, data)
+        self.monitor_sock.send(self.id + '|' + data + '|\n')
 
     def get_zk_zoneserver(self, zid):
         server_id = self.server_id_cache.get(zid)
@@ -354,8 +357,9 @@ class Gateway(AbstractServer):
 
             self.listen_tcp_client(self.client_tcp_port)
             self.listen_websocket_client(self.client_websocket_port)
+            self.monitor_sock.connect((self.monitor_host, 5902))
 
-            self.add_timed_call(self.update_zk_node_data, 5)
+            self.add_timed_call(self.update_zk_node_data, 1)
 
             AbstractServer.run(self)
 

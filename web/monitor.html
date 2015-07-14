@@ -63,7 +63,7 @@
     </script>
 
     <script language="javascript" type="text/javascript">
-        var url = "ws://222.122.192.57:8080/";
+        var url = "ws://222.122.192.69:8080/";
 
         var alert_box;
         var side_panel;
@@ -177,7 +177,7 @@
                 var gw = list_gateway[n];
                 var server = {
                     heading: gw.gateway_id + " (clients: " + gw.num_client + ")",
-                    cpu: Math.floor(gw.cpu_usage),
+                    cpu: Math.floor(gw.cpu_usage[0]),
                     mem: Math.floor(gw.mem_usage),
                     desc: "IP address: " + gw.address
                 };
@@ -200,7 +200,7 @@
                 var zs = list_zoneserver[n];
                 var server = {
                     heading: zs.zoneserver_id + " (zones: " + zs.num_zone + ")",
-                    cpu: Math.floor(zs.cpu_usage),
+                    cpu: Math.floor(zs.cpu_usage[0]),
                     mem: Math.floor(zs.mem_usage),
                     desc: "IP address: " + zs.address
                 };

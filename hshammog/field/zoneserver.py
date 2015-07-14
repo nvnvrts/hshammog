@@ -2,6 +2,7 @@
 import json
 import logging
 import psutil
+import socket
 
 # python libraries
 from kazoo.recipe.lock import Lock
@@ -19,7 +20,7 @@ class ZoneServer(AbstractServer):
 
     def __init__(self,
                  mq_host, mq_pub_port, mq_sub_port,
-                 zk_hosts, zk_path):
+                 zk_hosts, zk_path, monitor_host):
         AbstractServer.__init__(self, 'zoneserver', zk_hosts, zk_path)
 
         logger.info('zone server %s initializing...' % self.id)
@@ -30,6 +31,9 @@ class ZoneServer(AbstractServer):
         self.mq_sub_port = mq_sub_port
         self.zk_hosts = zk_hosts
         self.zk_path = zk_path
+        self.monitor_host = monitor_host
+        self.monitor_sock = socket.socket(socket.AF_INET,
+                                          socket.SOCK_STREAM)
 
         # initialize local data
         self.zones = {}
@@ -40,6 +44,8 @@ class ZoneServer(AbstractServer):
             'fMove': self.on_mq_f_move,
             'fLookup': self.on_mq_f_lookup,
             'fMsg': self.on_mq_f_msg,
+            'fHOPrepare': self.on_mq_f_ho_prepare,
+            'fHOCheck': self.on_mq_f_ho_check,
             'fExit': self.on_mq_f_exit,
             'zAdd': self.on_mq_z_add,
             'zVSplit': self.on_mq_z_vsplit,
@@ -58,10 +64,11 @@ class ZoneServer(AbstractServer):
         self.zones[zone.get_id()] = zone
 
         # create a new node for the zone
-        self.zk_client.create(path=self.zk_zone_zones_path + zone.get_id(),
-                              value=zone.dumps(),
-                              ephemeral=True,
-                              sequence=False)
+#        self.zk_client.create(path=self.zk_zone_zones_path + zone.get_id(),
+#                              value=zone.dumps(),
+#                              ephemeral=True,
+#                              sequence=False)
+        self.update_zone(zone)
 
         # update zookeeper node data
         self.update_zk_node_data()
@@ -71,13 +78,15 @@ class ZoneServer(AbstractServer):
     # delete the zone
     def delete_zone(self, zone):
         del self.zones[zone.get_id()]
-        self.zk_client.delete(path=self.zk_zone_zones_path + zone.get_id())
+#        self.zk_client.delete(path=self.zk_zone_zones_path + zone.get_id())
+        self.monitor_sock.send(zone.get_id() + '|' + zone.dumps() + '|d\n')
         self.update_zk_node_data()
 
     # update zone data
     def update_zone(self, zone):
-        self.zk_client.set(self.zk_zone_zones_path + zone.get_id(),
-                           zone.dumps())
+#        self.zk_client.set(self.zk_zone_zones_path + zone.get_id(),
+#                           zone.dumps())
+        self.monitor_sock.send(zone.get_id() + '|' + zone.dumps() + '|' + 'u\n')
 
     # update cellserver's data to zookeeper
     def update_zk_node_data(self):
@@ -86,7 +95,8 @@ class ZoneServer(AbstractServer):
 
         # set node data with zone id list
         logger.debug('update zone %s data %s' % (path, data))
-        self.zk_client.set(path, data)
+#        self.zk_client.set(path, data)
+        self.monitor_sock.send(self.id + '|' + data + '|\n')
 
     def publish_message(self, tag, message):
         data = '%s|%s|%d' % (self.id, message.dumps(), message.timestamp)
@@ -131,6 +141,12 @@ class ZoneServer(AbstractServer):
                     for zone_id, zone in self.zones.iteritems():
                         zone.add_member(member.client_id, member.x, member.y)
 
+                    self.publish_message('zoneserver-all',
+                                         Message(cmd='fHOPrepare',
+                                                 cid=message.cid,
+                                                 x=member.x, y=member.y,
+                                                 timestamp=message.timestamp))
+
     # on_mq_f_lookup
     def on_mq_f_lookup(self, server_id, message):
         for zone_id, zone in self.zones.iteritems():
@@ -154,6 +170,20 @@ class ZoneServer(AbstractServer):
 
     # on_mq_f_msg: TODO
     def on_mq_f_msg(self, server_id, message):
+        pass
+
+    # on_mq_f_ho_prepare
+    def on_mq_f_ho_prepare(self, server_id, message):
+        for zone_id, zone in self.zones.iteritems():
+            if zone.add_member(message.cid, message.x, message.y):
+                self.update_zone(zone)
+                self.publish_message(server_id,
+                                     Message(cmd='fHOCheck',
+                                             cid=message.cid,
+                                             timestamp=message.timestamp))
+
+    # on_mq_f_ho_check
+    def on_mq_f_ho_check(self, server_id, message):
         pass
 
     # on_mq_f_exit:
@@ -314,6 +344,8 @@ class ZoneServer(AbstractServer):
                 'num_zone': 0,
                 'ip_address': self.ip_address
             }
+
+            self.monitor_sock.connect((self.monitor_host, 5902))
 
             # zookeeper setup
             node = self.zk_client.create(path=zk_zone_server_path,

@@ -210,26 +210,26 @@ class Zone:
         zone1 = Zone(self.grid['lt_x'], self.grid['lt_y'],
                      self.grid['rb_x'], rb_y1,
                      self.max_members, self.grid['border_width'],
-                     self.grid['global_size'])
+                     self.grid['global_size'], self.server_id)
 
         zone2 = Zone(self.grid['lt_x'], lt_y2,
                      self.grid['rb_x'], self.grid['rb_y'],
                      self.max_members, self.grid['border_width'],
-                     self.grid['global_size'])
+                     self.grid['global_size'], self.server_id)
 
         return [zone1, zone2]
 
     def vertical_split(self):
-        rb_x1 = (zone['rb_x'] + zone['lt_x'])/2
+        rb_x1 = (self.grid['rb_x'] + self.grid['lt_x'])/2
         lt_x2 = rb_x1 + 1
 
         zone1 = Zone(self.grid['lt_x'], self.grid['lt_y'],
                      rb_x1, self.grid['rb_y'],
                      self.max_members, self.grid['border_width'],
-                     self.grid['global_size'])
+                     self.grid['global_size'], self.server_id)
         zone2 = Zone(lt_x2, self.grid['lt_y'],
                      self.grid['rb_x'], self.grid['rb_y'],
                      self.max_members, self.grid['border_width'],
-                     self.grid['global_size'])
+                     self.grid['global_size'], self.server_id)
 
         return [zone1, zone2]
